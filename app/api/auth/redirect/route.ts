@@ -11,6 +11,10 @@ export async function GET() {
 
 	const role = (session.user as any).role
 
+	if (role === 'ADMIN') {
+		redirect('/admin')
+	}
+
 	if (role === 'OWNER' || role === 'EMPLOYEE') {
 		redirect('/manager')
 	}

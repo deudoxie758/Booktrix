@@ -13,6 +13,7 @@ export default function SignUpPage() {
 	const [error, setError] = useState('')
 	const [success, setSuccess] = useState('')
 	const router = useRouter()
+	const callbackUrl = `${window.location.origin}/api/auth/redirect`
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
@@ -46,17 +47,12 @@ export default function SignUpPage() {
 				setSuccess('Account created successfully! Signing you in...')
 				// Auto sign in after signup
 				setTimeout(async () => {
-					const result = await signIn('credentials', {
+					await signIn('credentials', {
 						email,
 						password,
-						redirect: false,
+						callbackUrl,
+						redirect: true,
 					})
-					if (result?.ok) {
-						router.push('/dashboard')
-					} else {
-						setError('Account created but sign in failed. Please try signing in manually.')
-						setIsLoading(false)
-					}
 				}, 1500)
 			} else {
 				setError(data.error || 'Failed to create account')
@@ -203,7 +199,7 @@ export default function SignUpPage() {
 					<button
 						onClick={() =>
 							signIn('google', {
-								callbackUrl: '/dashboard',
+								callbackUrl,
 								redirect: true,
 							})
 						}

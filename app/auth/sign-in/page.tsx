@@ -11,7 +11,7 @@ export default function SignInPage() {
 	const [isLoading, setIsLoading] = useState(false)
 	const [error, setError] = useState('')
 	const searchParams = useSearchParams()
-	const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
+	const callbackUrl = searchParams.get('callbackUrl') || `${window.location.origin}/api/auth/redirect`
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
@@ -39,11 +39,11 @@ export default function SignInPage() {
 				setIsLoading(false)
 			}
 		} else {
-			// Sign in - let NextAuth handle the redirect via a server callback
+			// Sign in - let NextAuth handle the redirect via the admin redirect route
 			await signIn('credentials', {
 				email,
 				password,
-				callbackUrl: '/dashboard',
+				callbackUrl,
 				redirect: true,
 			})
 		}

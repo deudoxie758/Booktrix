@@ -12,6 +12,7 @@ enum Role {
     OWNER
     EMPLOYEE
     ACCOUNTANT
+    ADMIN
 }
 
 enum BookingStatus {

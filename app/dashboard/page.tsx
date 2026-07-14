@@ -2,9 +2,14 @@ import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 
 export default async function DashboardPage() {
 	const session = await getServerSession(authOptions)
+	const role = (session?.user as any)?.role
+	if (role === 'ADMIN') {
+		redirect('/admin')
+	}
 	const spas = await prisma.spa.findMany({
 		include: {
 			Services: {
@@ -143,7 +148,7 @@ export default async function DashboardPage() {
 						Discover What's Perfect For You
 					</h3>
 					<p className='text-lg text-gray-600 max-w-2xl mx-auto'>
-						Discover exceptional wellness locations and treatments 
+						Discover exceptional wellness locations and treatments a
 					</p>
 				</div>
 
