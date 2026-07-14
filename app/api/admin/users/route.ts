@@ -20,7 +20,7 @@ async function getAdminSession() {
 }
 
 function isValidRole(role: any): role is Role {
-  return ['USER', 'OWNER', 'EMPLOYEE', 'ACCOUNTANT'].includes(role)
+  return ['USER', 'OWNER', 'EMPLOYEE', 'ACCOUNTANT', 'ADMIN'].includes(role)
 }
 
 export async function GET() {
