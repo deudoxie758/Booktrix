@@ -18,13 +18,13 @@ const segment = {
 function memoryStore(): HoldStore {
   const holds = new Map<string, Awaited<ReturnType<HoldStore['create']>>>()
   let queue = Promise.resolve()
-  return {
+  const store: HoldStore = {
     transaction: async (work) => {
       const prior = queue
       let release!: () => void
       queue = new Promise<void>((resolve) => { release = resolve })
       await prior
-      try { return await work() } finally { release() }
+      try { return await work(store) } finally { release() }
     },
     findByIdempotencyKey: async (key) => Array.from(holds.values()).find((hold) => hold.idempotencyKey === key) ?? null,
     findByToken: async (token) => holds.get(token) ?? null,
@@ -39,6 +39,7 @@ function memoryStore(): HoldStore {
       return created
     },
   }
+  return store
 }
 
 describe('booking holds', () => {
@@ -48,6 +49,18 @@ describe('booking holds', () => {
     const first = await createBookingHold(input, { store, now: () => new Date('2026-08-20T13:00:00.000Z') })
     const second = await createBookingHold(input, { store, now: () => new Date('2026-08-20T13:00:00.000Z') })
     expect(second.token).toBe(first.token)
+  })
+
+  it('rejects an idempotency key reused by another checkout identity', async () => {
+    const store = memoryStore()
+    await createBookingHold(
+      { businessId: 'business-1', checkoutIdentity: 'browser-1', idempotencyKey: 'shared', segments: [segment] },
+      { store },
+    )
+    await expect(createBookingHold(
+      { businessId: 'business-1', checkoutIdentity: 'browser-2', idempotencyKey: 'shared', segments: [segment] },
+      { store },
+    )).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' })
   })
 
   it('allows only one simultaneous hold at capacity one', async () => {
