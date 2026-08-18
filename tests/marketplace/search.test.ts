@@ -14,4 +14,13 @@ describe('marketplace search', () => {
     expect(results).toHaveLength(1)
     expect(results[0]).toMatchObject({ businessSlug: 'calm', coverImageUrl: '/images/calm.png', startingPriceCents: 12000 })
   })
+
+  it('applies take after offerings are grouped into storefronts', async () => {
+    const row = (id: string, businessName: string, businessSlug: string) => ({ id, businessStatus: 'PUBLISHED' as const, businessName, businessSlug, offeringName: id, category: 'Wellness', priceCents: 10000, durationMinutes: 60, locations: [{ name: 'City', address: 'Castries' }] })
+    const results = await searchMarketplace(
+      { take: 2 },
+      { list: async () => [row('one-a', 'One', 'one'), row('one-b', 'One', 'one'), row('two-a', 'Two', 'two'), row('three-a', 'Three', 'three')] },
+    )
+    expect(results.map((result) => result.businessSlug)).toEqual(['one', 'two'])
+  })
 })

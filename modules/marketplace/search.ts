@@ -28,7 +28,7 @@ type SearchRepository = { list(input: SearchInput): Promise<MarketplaceOfferingR
 
 const databaseRepository: SearchRepository = {
   list: async (input) => {
-    const rows = await listPublishedOfferings({ query: input.query, category: input.category, take: input.take, skip: input.skip })
+    const rows = await listPublishedOfferings({ query: input.query, category: input.category, take: 50, skip: 0 })
     return rows.map((row) => ({
       id: row.id,
       businessStatus: row.business.status,
@@ -71,5 +71,5 @@ export async function searchMarketplace(input: SearchInput, repository: SearchRe
     current.offerings.push({ id: row.id, offeringName: row.offeringName, category: row.category, priceCents: row.priceCents, durationMinutes: row.durationMinutes })
     grouped.set(row.businessSlug, current)
   }
-  return Array.from(grouped.values())
+  return Array.from(grouped.values()).slice(normalized.skip, normalized.skip + normalized.take)
 }
