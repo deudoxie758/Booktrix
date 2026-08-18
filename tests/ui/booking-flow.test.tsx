@@ -10,6 +10,7 @@ const state = {
   offerings: [{ id: 'service-1', name: 'Massage', durationMinutes: 60, priceCents: 12000, currency: 'XCD', paymentChoices: ['FULL', 'CASH'] as const }],
   selectedOfferingIds: ['service-1'],
   hold: null,
+  authenticated: true,
 }
 
 describe('BookingFlow', () => {
@@ -32,6 +33,22 @@ describe('BookingFlow', () => {
     expect(screen.getByRole('button', { name: /continue to date/i })).toBeEnabled()
   })
 
+  it('sends an anonymous customer with an active hold through the held-checkout sign-in callback', () => {
+    render(<BookingFlow initialState={{ ...state, authenticated: false, hold: { token: 'hold-1', expiresAt: '2026-08-20T13:10:00.000Z', expired: false } }} />)
+
+    expect(screen.getByRole('link', { name: /sign in to continue/i })).toHaveAttribute(
+      'href',
+      '/auth/sign-in?callbackUrl=%2Fbook%2Fcalm-studio%3Fhold%3Dhold-1',
+    )
+  })
+
+  it('restores an authenticated held checkout at payment', () => {
+    render(<BookingFlow initialState={{ ...state, authenticated: true, hold: { token: 'hold-1', expiresAt: '2026-08-20T13:10:00.000Z', expired: false } }} />)
+
+    expect(screen.getByRole('group', { name: /how would you like to pay/i })).toBeVisible()
+    expect(screen.getByRole('radio', { name: /pay cash/i })).toBeVisible()
+  })
+
   it('creates a hold after selecting live availability', async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ slots: [{ start: '2026-08-20T14:00:00.000Z', segments: [{ offeringId: 'service-1', membershipId: 'member-1', start: '2026-08-20T14:00:00.000Z', end: '2026-08-20T15:00:00.000Z', occupiedStart: '2026-08-20T14:00:00.000Z', occupiedEnd: '2026-08-20T15:00:00.000Z', attendeeCount: 1 }] }] }) })
@@ -43,10 +60,35 @@ describe('BookingFlow', () => {
     fireEvent.click(screen.getByRole('button', { name: /continue to date/i }))
     fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-08-20' } })
     fireEvent.click(await screen.findByRole('button', { name: /10:00 am/i }))
-    expect(await screen.findByRole('status')).toHaveTextContent('Time reserved for 10 minutes')
+    expect(await screen.findByText('Time reserved for 10 minutes.')).toBeVisible()
     const availabilityUrl = new URL(String(fetch.mock.calls[0]![0]), 'https://booktrix.test')
     expect(availabilityUrl.searchParams.get('from')).toBe('2026-08-20T04:00:00.000Z')
     expect(availabilityUrl.searchParams.get('to')).toBe('2026-08-21T04:00:00.000Z')
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps a reservation single-flight while a slot request is pending', async () => {
+    let finishReservation: ((value: { ok: boolean; json: () => Promise<{ token: string; expiresAt: string }> }) => void) | undefined
+    const fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ slots: [{ start: '2026-08-20T14:00:00.000Z', segments: [{ offeringId: 'service-1', membershipId: 'member-1', start: '2026-08-20T14:00:00.000Z', attendeeCount: 1 }] }] }) })
+      .mockImplementationOnce(() => new Promise((resolve) => { finishReservation = resolve }))
+    vi.stubGlobal('fetch', fetch)
+    render(<BookingFlow initialState={{ ...state, businessId: 'business-1' }} />)
+    fireEvent.click(screen.getByRole('button', { name: /continue to location/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /castries/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue to date/i }))
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-08-20' } })
+    const slot = await screen.findByRole('button', { name: /10:00 am/i })
+
+    fireEvent.click(slot)
+    fireEvent.click(slot)
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('status')).toHaveTextContent('Reserving your time…')
+    expect(slot).toBeDisabled()
+
+    finishReservation?.({ ok: true, json: async () => ({ token: 'hold-1', expiresAt: '2026-08-20T13:10:00.000Z' }) })
+    expect(await screen.findByText('Time reserved for 10 minutes.')).toBeVisible()
     vi.unstubAllGlobals()
   })
 
@@ -101,7 +143,6 @@ describe('BookingFlow', () => {
     const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: { id: 'order-1' } }) })
     vi.stubGlobal('fetch', fetch)
     render(<BookingFlow initialState={{ ...state, hold: { token: 'hold-1', expiresAt: '2026-08-20T13:10:00.000Z', expired: false } }} />)
-    fireEvent.click(screen.getByRole('button', { name: /continue to payment/i }))
     fireEvent.click(screen.getByRole('radio', { name: /pay cash/i }))
     fireEvent.click(screen.getByRole('button', { name: /review booking/i }))
     fireEvent.click(screen.getByRole('button', { name: /confirm booking/i }))
@@ -113,7 +154,6 @@ describe('BookingFlow', () => {
   it('announces and focuses checkout network failures', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
     render(<BookingFlow initialState={{ ...state, hold: { token: 'hold-1', expiresAt: '2026-08-20T13:10:00.000Z', expired: false } }} />)
-    fireEvent.click(screen.getByRole('button', { name: /continue to payment/i }))
     fireEvent.click(screen.getByRole('radio', { name: /pay cash/i }))
     fireEvent.click(screen.getByRole('button', { name: /review booking/i }))
     fireEvent.click(screen.getByRole('button', { name: /confirm booking/i }))

@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 
 import { prisma } from '@/lib/prisma'
 import { getPublishedStorefront } from '@/modules/marketplace/storefront'
+import { getActor } from '@/modules/identity/session'
 
 import { BookingFlow } from './BookingFlow'
 
@@ -14,17 +15,20 @@ export default async function BookingPage({ params, searchParams }: { params: { 
   const selectedIds = (searchParams.services ?? '').split(',').filter(Boolean)
   const validIds = business.ServiceOfferings.filter((offering) => selectedIds.includes(offering.id)).map((offering) => offering.id)
   let hold: null | { token: string; expiresAt: string; expired: boolean } = null
+  let heldOfferingIds: string[] = []
   if (searchParams.hold) {
-    const persisted = await prisma.bookingHold.findFirst({ where: { token: searchParams.hold, businessId: business.id } })
+    const persisted = await prisma.bookingHold.findFirst({ where: { token: searchParams.hold, businessId: business.id }, include: { Segments: { select: { offeringId: true } } } })
     if (persisted) {
       hold = { token: persisted.token, expiresAt: persisted.expiresAt.toISOString(), expired: Boolean(persisted.consumedAt) || persisted.expiresAt <= new Date() }
+      heldOfferingIds = persisted.Segments.map((segment) => segment.offeringId)
     }
   }
   if (!validIds.length && !hold) redirect(`/s/${business.slug}`)
-  const selected = validIds.length ? validIds : business.ServiceOfferings.map((offering) => offering.id)
+  const selected = heldOfferingIds.length ? heldOfferingIds : validIds
+  const actor = await getActor()
   return <main className="min-h-screen bg-cream-100 px-5 py-8 sm:px-8 sm:py-12"><div className="mx-auto max-w-7xl"><Link href={`/s/${business.slug}`} className="text-sm font-semibold text-clay-600">← Back to {business.name}</Link><header className="mb-8 mt-7"><p className="text-xs font-bold uppercase tracking-[.18em] text-clay-600">Secure booking</p><h1 className="mt-3 font-display text-4xl text-cocoa-950 sm:text-5xl">Plan your visit to {business.name}</h1></header><BookingFlow initialState={{ businessId: business.id, businessSlug: business.slug, businessName: business.name, locations: business.Locations.map((location) => ({ id: location.id, name: location.name })), offerings: business.ServiceOfferings.map((offering) => ({ id: offering.id, name: offering.name, durationMinutes: offering.durationMinutes, priceCents: offering.priceCents, currency: offering.currency, paymentChoices: [
     ...(offering.allowFullPayment ? ['FULL' as const] : []),
     ...(offering.allowDeposit ? ['DEPOSIT' as const] : []),
     ...(offering.allowCash ? ['CASH' as const] : []),
-  ] })), selectedOfferingIds: selected, hold, rescheduleOrderId: searchParams.reschedule }} /></div></main>
+  ] })), selectedOfferingIds: selected, hold, authenticated: Boolean(actor), rescheduleOrderId: searchParams.reschedule }} /></div></main>
 }
