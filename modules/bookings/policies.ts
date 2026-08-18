@@ -4,3 +4,5 @@ export function canCustomerCancel(input: { status: SegmentStatus; startsAt: Date
   if (!['REQUESTED', 'CONFIRMED'].includes(input.status)) return false
   return input.startsAt.getTime() - input.now.getTime() >= input.leadMinutes * 60_000
 }
+
+export const canCustomerReschedule = canCustomerCancel

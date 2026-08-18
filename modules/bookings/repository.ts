@@ -72,3 +72,33 @@ export function listCustomerOrders(customerId: string) {
     orderBy: { createdAt: 'desc' },
   })
 }
+
+type CustomerOrderReader = Pick<typeof prisma.bookingOrder, 'findFirst'>
+
+export class CustomerOrderNotFoundError extends Error {
+  code = 'NOT_FOUND' as const
+
+  constructor() {
+    super('Booking not found')
+    this.name = 'CustomerOrderNotFoundError'
+  }
+}
+
+export async function getCustomerOrder(
+  input: { orderId: string; customerId: string },
+  reader: CustomerOrderReader = prisma.bookingOrder,
+) {
+  const order = await reader.findFirst({
+    where: { id: input.orderId, customerId: input.customerId },
+    include: {
+      business: true,
+      Segments: {
+        include: { offering: true, location: true, membership: { include: { user: true } } },
+        orderBy: { startsAt: 'asc' },
+      },
+    },
+  })
+
+  if (!order) throw new CustomerOrderNotFoundError()
+  return order
+}

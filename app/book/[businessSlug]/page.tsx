@@ -8,7 +8,7 @@ import { BookingFlow } from './BookingFlow'
 
 export const dynamic = 'force-dynamic'
 
-export default async function BookingPage({ params, searchParams }: { params: { businessSlug: string }; searchParams: { services?: string; hold?: string } }) {
+export default async function BookingPage({ params, searchParams }: { params: { businessSlug: string }; searchParams: { services?: string; hold?: string; reschedule?: string } }) {
   const business = await getPublishedStorefront(params.businessSlug)
   if (!business) notFound()
   const selectedIds = (searchParams.services ?? '').split(',').filter(Boolean)
@@ -26,5 +26,5 @@ export default async function BookingPage({ params, searchParams }: { params: { 
     ...(offering.allowFullPayment ? ['FULL' as const] : []),
     ...(offering.allowDeposit ? ['DEPOSIT' as const] : []),
     ...(offering.allowCash ? ['CASH' as const] : []),
-  ] })), selectedOfferingIds: selected, hold }} /></div></main>
+  ] })), selectedOfferingIds: selected, hold, rescheduleOrderId: searchParams.reschedule }} /></div></main>
 }

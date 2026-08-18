@@ -63,6 +63,10 @@ export default async function ProfilePage() {
 	return (
 		<div className='min-h-screen bg-gray-50'>
 			<div className='max-w-6xl mx-auto px-6 py-8'>
+				<Link href='/profile/bookings' className='mb-6 flex items-center justify-between rounded-2xl bg-cocoa-900 px-6 py-5 text-white shadow-lg transition hover:bg-cocoa-800'>
+					<span><span className='block text-xs font-bold uppercase tracking-[.16em] text-sand-200'>Booktrix booking center</span><span className='mt-1 block text-xl font-semibold'>View and manage your bookings</span></span>
+					<span aria-hidden='true' className='text-2xl'>→</span>
+				</Link>
 				{/* Profile Header */}
 				<div className='bg-white rounded-2xl shadow-lg p-8 mb-8'>
 					<div className='flex items-start justify-between'>
