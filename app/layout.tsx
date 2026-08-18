@@ -2,11 +2,11 @@ import '../styles/globals.css'
 import React from 'react'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import Navigation from './components/Navigation'
+import { PublicHeader } from '@/components/shells/PublicHeader'
 
 export const metadata = {
-	title: 'BOOKTRIX- Making booking services effortless',
-	description: 'Premium booking platform.',
+	title: 'Booktrix — Book local services beautifully',
+	description: 'Discover and book trusted service businesses across Saint Lucia.',
 }
 
 export default async function RootLayout({
@@ -17,10 +17,10 @@ export default async function RootLayout({
 	const session = await getServerSession(authOptions)
 
 	return (
-		<html lang='en'>
+		<html lang='en-LC'>
 			<body>
-				<div className='min-h-screen bg-gray-50'>
-					{session && <Navigation session={session} />}
+				<div className='min-h-screen bg-cream-100'>
+					<PublicHeader signedIn={Boolean(session)} />
 					<main>{children}</main>
 				</div>
 			</body>
