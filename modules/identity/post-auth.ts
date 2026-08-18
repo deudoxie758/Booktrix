@@ -15,7 +15,7 @@ export function resolvePostAuthDestination({ platformRole, memberships, selected
 	const role = selectedWorkspaceRole({ memberships, selectedMembership })
 	if (role === 'OWNER' || role === 'MANAGER') return '/business/calendar'
 	if (role === 'ACCOUNTS') return '/business/finance'
-	if (role === 'STAFF') return '/business'
+	if (role === 'STAFF') return '/business/schedule'
 
 	return '/profile/bookings'
 }
@@ -53,7 +53,7 @@ function canUsePostAuthPath(pathname: string, { platformRole, memberships, selec
 	if (role === 'OWNER') return pathMatches(pathname, '/business')
 	if (role === 'MANAGER') return pathname === '/business' || ['/business/calendar', '/business/customers', '/business/services', '/business/locations'].some((path) => pathMatches(pathname, path))
 	if (role === 'ACCOUNTS') return pathname === '/business' || ['/business/finance', '/business/locations'].some((path) => pathMatches(pathname, path))
-	if (role === 'STAFF') return pathname === '/business' || pathMatches(pathname, '/business/customers')
+	if (role === 'STAFF') return pathname === '/business' || ['/business/schedule', '/business/customers'].some((path) => pathMatches(pathname, path))
 	return false
 }
 

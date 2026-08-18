@@ -24,17 +24,17 @@ describe('post-auth routing', () => {
 		expect(resolvePostAuthDestination({ platformRole: 'ACCOUNTANT', memberships: [{ role: 'ACCOUNTS' }] })).toBe('/business/finance')
 	})
 
-	it('sends staff memberships to an accessible revised workspace', () => {
-		expect(resolvePostAuthDestination({ platformRole: 'EMPLOYEE', memberships: [{ role: 'STAFF' }] })).toBe('/business')
+	it('sends staff memberships to their revised schedule', () => {
+		expect(resolvePostAuthDestination({ platformRole: 'EMPLOYEE', memberships: [{ role: 'STAFF' }] })).toBe('/business/schedule')
 	})
 
-	it('does not preserve a staff schedule-management callback', () => {
+	it('preserves a staff schedule callback', () => {
 		expect(resolveSafePostAuthDestination({
 			callbackUrl: '/business/schedule',
 			baseUrl: 'https://booktrix.test',
-			fallback: '/business',
+			fallback: '/business/schedule',
 			identity: { platformRole: 'EMPLOYEE', memberships: [{ role: 'STAFF' }] },
-		})).toBe('/business')
+		})).toBe('/business/schedule')
 	})
 
 	it('uses the selected workspace membership instead of aggregating roles across businesses', () => {
@@ -43,8 +43,8 @@ describe('post-auth routing', () => {
 			memberships: [{ role: 'STAFF' as const }, { role: 'OWNER' as const }],
 			selectedMembership: { role: 'STAFF' as const },
 		}
-		expect(resolvePostAuthDestination(identity)).toBe('/business')
-		expect(resolveSafePostAuthDestination({ callbackUrl: '/business/calendar', baseUrl: 'https://booktrix.test', fallback: '/business', identity })).toBe('/business')
+		expect(resolvePostAuthDestination(identity)).toBe('/business/schedule')
+		expect(resolveSafePostAuthDestination({ callbackUrl: '/business/calendar', baseUrl: 'https://booktrix.test', fallback: '/business/schedule', identity })).toBe('/business/schedule')
 	})
 
 	it('preserves a same-origin Phase 2 checkout callback', () => {
