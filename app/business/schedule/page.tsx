@@ -1,0 +1,1 @@
+import { WorkspacePlaceholder } from '@/components/business/WorkspacePlaceholder'; export default function Page(){return <WorkspacePlaceholder title="My schedule" description="Staff availability and assigned appointments will appear here."/>}

@@ -1,0 +1,1 @@
+import { WorkspacePlaceholder } from '@/components/business/WorkspacePlaceholder'; import { requireWorkspaceRole } from '@/modules/organizations/context'; export default async function Page(){await requireWorkspaceRole(['OWNER','MANAGER']);return <WorkspacePlaceholder title="Calendar" description="The multi-location appointment calendar arrives with the scheduling phase."/>}
