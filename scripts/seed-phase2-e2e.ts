@@ -7,18 +7,18 @@ const password = 'password123'
 type Hours = Array<[number, number, number]>
 type LocationFixture = { id: string; slug: string; name: string; address: string; phone: string; email: string; hours: Hours }
 type MemberFixture = { id: string; email: string; name: string; role: BusinessRole; locations: string[] }
-type OfferingFixture = { id: string; category: string; name: string; description: string; minutes: number; price: number; locations: string[]; staff: string[]; mode?: ConfirmationMode; deposit?: [DepositKind, number]; cash?: boolean }
+type OfferingFixture = { id: string; category: string; name: string; description: string; minutes: number; price: number; locations: string[]; staff: string[]; mode?: ConfirmationMode; deposit?: [DepositKind, number]; cash?: boolean; full?: boolean }
 type BusinessFixture = { id: string; name: string; slug: string; locations: LocationFixture[]; members: MemberFixture[]; offerings: OfferingFixture[] }
 
 const standardHours: Hours = [[1, 540, 1020], [2, 540, 1020], [3, 540, 1020], [4, 540, 1020], [5, 540, 1080], [6, 600, 960]]
 const clubHours: Hours = [[1, 480, 1140], [2, 480, 1140], [3, 480, 1140], [4, 480, 1140], [5, 480, 1140], [6, 540, 1020], [0, 540, 900]]
 const location = (id: string, slug: string, name: string, address: string, hours = standardHours): LocationFixture => ({ id, slug, name, address, phone: '+1 758-555-0100', email: `${slug}@booktrix.test`, hours })
 const member = (id: string, name: string, role: BusinessRole, locations: string[]): MemberFixture => ({ id, name, role, locations, email: `${id.replace('booktrix-e2e-member-', '')}@booktrix.test` })
-const offering = (id: string, category: string, name: string, minutes: number, price: number, locations: string[], staff: string[], description: string, mode: ConfirmationMode = 'AUTOMATIC', deposit?: [DepositKind, number], cash = true): OfferingFixture => ({ id, category, name, minutes, price, locations, staff, description, mode, deposit, cash })
+const offering = (id: string, category: string, name: string, minutes: number, price: number, locations: string[], staff: string[], description: string, mode: ConfirmationMode = 'AUTOMATIC', deposit?: [DepositKind, number], cash = true, full = true): OfferingFixture => ({ id, category, name, minutes, price, locations, staff, description, mode, deposit, cash, full })
 
 // Image fields are not present on Business or ServiceOffering yet. Planned local assets under
 // /images/demo-storefronts are deliberately not persisted until the schema supports them.
-const demoBusinesses: BusinessFixture[] = [
+export const demoBusinesses: BusinessFixture[] = [
   {
     id: 'booktrix-e2e-business-sole-wellness-house', name: 'Solé Wellness House', slug: 'sole-wellness-house',
     locations: [location('booktrix-e2e-location-sole-castries', 'castries', 'Solé Wellness House — Castries', '12 Choc Bay, Castries, Saint Lucia'), location('booktrix-e2e-location-sole-rodney-bay', 'rodney-bay', 'Solé Wellness House — Rodney Bay', 'Baywalk Mall, Rodney Bay, Saint Lucia')],
@@ -53,9 +53,41 @@ const demoBusinesses: BusinessFixture[] = [
     id: 'booktrix-e2e-business-island-glow-beauty-bar', name: 'Island Glow Beauty Bar', slug: 'island-glow-beauty-bar',
     locations: [location('booktrix-e2e-location-glow-laborie', 'laborie', 'Island Glow Beauty Bar — Laborie', '3 Lighthouse Road, Laborie, Saint Lucia')],
     members: [member('booktrix-e2e-member-glow-owner', 'Imani Laurent', 'OWNER', ['laborie']), member('booktrix-e2e-member-glow-zaria', 'Zaria Noel', 'STAFF', ['laborie']), member('booktrix-e2e-member-glow-amber', 'Amber Cox', 'STAFF', ['laborie'])],
-    offerings: [offering('booktrix-e2e-offering-glow-brow', 'Beauty', 'Brow Shape & Hybrid Tint', 45, 7500, ['laborie'], ['booktrix-e2e-member-glow-zaria'], 'Brow mapping, shaping, and a soft hybrid tint.'), offering('booktrix-e2e-offering-glow-makeup', 'Beauty', 'Occasion Makeup Application', 75, 15500, ['laborie'], ['booktrix-e2e-member-glow-amber'], 'Long-wear complexion and eye makeup for weddings and events.', 'MANUAL', ['FIXED', 5000]), offering('booktrix-e2e-offering-glow-waxing', 'Beauty', 'Brazilian Wax', 45, 10500, ['laborie'], ['booktrix-e2e-member-glow-zaria'], 'Private professional waxing appointment with calming aftercare.', 'MANUAL', ['PERCENTAGE', 30])],
+    offerings: [offering('booktrix-e2e-offering-glow-brow', 'Beauty', 'Brow Shape & Hybrid Tint', 45, 7500, ['laborie'], ['booktrix-e2e-member-glow-zaria'], 'Brow mapping, shaping, and a soft hybrid tint.', 'AUTOMATIC', undefined, true, false), offering('booktrix-e2e-offering-glow-makeup', 'Beauty', 'Occasion Makeup Application', 75, 15500, ['laborie'], ['booktrix-e2e-member-glow-amber'], 'Long-wear complexion and eye makeup for weddings and events.', 'MANUAL', ['FIXED', 5000]), offering('booktrix-e2e-offering-glow-waxing', 'Beauty', 'Brazilian Wax', 45, 10500, ['laborie'], ['booktrix-e2e-member-glow-zaria'], 'Private professional waxing appointment with calming aftercare.', 'MANUAL', ['PERCENTAGE', 30])],
   },
 ]
+
+type FixtureOwnership = {
+  users: Array<{ id: string; email: string }>
+  businesses: Array<{ id: string; slug: string }>
+  offerings: Array<{ id: string; allowFullPayment: boolean; allowDeposit: boolean; allowCash: boolean }>
+}
+
+export const fixtureOwnership: FixtureOwnership = {
+  users: [
+    ...demoBusinesses.flatMap((business) => business.members.map((member) => ({ id: `booktrix-e2e-user-${member.id.slice('booktrix-e2e-member-'.length)}`, email: member.email }))),
+    { id: 'booktrix-e2e-owner', email: 'owner.e2e@booktrix.test' }, { id: 'booktrix-e2e-manager', email: 'manager.e2e@booktrix.test' }, { id: 'booktrix-e2e-staff', email: 'staff.e2e@booktrix.test' }, { id: 'booktrix-e2e-customer', email: 'customer.e2e@booktrix.test' }, { id: 'booktrix-e2e-accounts', email: 'accounts.e2e@booktrix.test' },
+  ],
+  businesses: [...demoBusinesses.map(({ id, slug }) => ({ id, slug })), { id: 'booktrix-e2e-business', slug: 'booktrix-e2e-studio' }],
+  offerings: demoBusinesses.flatMap((business) => business.offerings.map((offering) => ({ id: offering.id, allowFullPayment: offering.full ?? true, allowDeposit: Boolean(offering.deposit), allowCash: offering.cash ?? true }))),
+}
+
+export function assertFixtureOwnership(expected: FixtureOwnership, existing: Pick<FixtureOwnership, 'users' | 'businesses'>) {
+  for (const expectedUser of expected.users) for (const user of existing.users.filter((candidate) => candidate.id === expectedUser.id || candidate.email === expectedUser.email)) {
+    if (user.id !== expectedUser.id || user.email !== expectedUser.email) throw new Error(`Fixture ownership collision for user ${expectedUser.email}`)
+  }
+  for (const expectedBusiness of expected.businesses) for (const business of existing.businesses.filter((candidate) => candidate.id === expectedBusiness.id || candidate.slug === expectedBusiness.slug)) {
+    if (business.id !== expectedBusiness.id || business.slug !== expectedBusiness.slug) throw new Error(`Fixture ownership collision for business ${expectedBusiness.slug}`)
+  }
+}
+
+async function preflightFixtureOwnership() {
+  const [users, businesses] = await Promise.all([
+    prisma.user.findMany({ where: { OR: [{ id: { in: fixtureOwnership.users.map((user) => user.id) } }, { email: { in: fixtureOwnership.users.map((user) => user.email) } }] }, select: { id: true, email: true } }),
+    prisma.business.findMany({ where: { OR: [{ id: { in: fixtureOwnership.businesses.map((business) => business.id) } }, { slug: { in: fixtureOwnership.businesses.map((business) => business.slug) } }] }, select: { id: true, slug: true } }),
+  ])
+  assertFixtureOwnership(fixtureOwnership, { users, businesses })
+}
 
 async function upsertUser(id: string, email: string, name: string, role: Role) {
   const hashedPassword = await hash(password, 10)
@@ -80,7 +112,7 @@ async function seedDemoBusiness(fixture: BusinessFixture) {
     for (const slug of item.locations) { const savedLocation = locations.get(slug)!; await prisma.locationAssignment.upsert({ where: { membershipId_locationId: { membershipId: saved.id, locationId: savedLocation.id } }, create: { membershipId: saved.id, locationId: savedLocation.id }, update: {} }) }
   }
   for (const item of fixture.offerings) {
-    const saved = await prisma.serviceOffering.upsert({ where: { id: item.id }, create: { id: item.id, businessId: business.id, category: item.category, name: item.name, description: item.description, durationMinutes: item.minutes, priceCents: item.price, confirmationMode: item.mode, allowFullPayment: true, allowDeposit: Boolean(item.deposit), allowCash: item.cash, depositKind: item.deposit?.[0], depositValue: item.deposit?.[1] }, update: { category: item.category, name: item.name, description: item.description, durationMinutes: item.minutes, priceCents: item.price, confirmationMode: item.mode, allowFullPayment: true, allowDeposit: Boolean(item.deposit), allowCash: item.cash, depositKind: item.deposit?.[0], depositValue: item.deposit?.[1], active: true } })
+    const saved = await prisma.serviceOffering.upsert({ where: { id: item.id }, create: { id: item.id, businessId: business.id, category: item.category, name: item.name, description: item.description, durationMinutes: item.minutes, priceCents: item.price, confirmationMode: item.mode, allowFullPayment: item.full, allowDeposit: Boolean(item.deposit), allowCash: item.cash, depositKind: item.deposit?.[0], depositValue: item.deposit?.[1] }, update: { category: item.category, name: item.name, description: item.description, durationMinutes: item.minutes, priceCents: item.price, confirmationMode: item.mode, allowFullPayment: item.full, allowDeposit: Boolean(item.deposit), allowCash: item.cash, depositKind: item.deposit?.[0], depositValue: item.deposit?.[1], active: true } })
     for (const slug of item.locations) {
       const savedLocation = locations.get(slug)!; await prisma.serviceLocation.upsert({ where: { offeringId_locationId: { offeringId: saved.id, locationId: savedLocation.id } }, create: { offeringId: saved.id, locationId: savedLocation.id }, update: { active: true } })
       for (const staffId of item.staff) { const savedMember = memberships.get(staffId)!; if (savedMember.locations.includes(slug)) await prisma.staffQualification.upsert({ where: { membershipId_offeringId_locationId: { membershipId: savedMember.id, offeringId: saved.id, locationId: savedLocation.id } }, create: { membershipId: savedMember.id, offeringId: saved.id, locationId: savedLocation.id }, update: { active: true } }) }
@@ -109,5 +141,5 @@ async function seedBookingJourneyFixtures() {
   await prisma.bookingHold.upsert({ where: { token: 'booktrix-e2e-expired-hold' }, create: { id: 'booktrix-e2e-expired-hold-id', token: 'booktrix-e2e-expired-hold', idempotencyKey: 'booktrix-e2e-expired-hold', businessId: business.id, customerId: customer.id, checkoutIdentity: 'booktrix-e2e-expired', expiresAt: new Date('2020-01-01T00:00:00Z') }, update: { consumedAt: null, expiresAt: new Date('2020-01-01T00:00:00Z') } })
 }
 
-async function main() { for (const fixture of demoBusinesses) await seedDemoBusiness(fixture); await seedBookingJourneyFixtures(); console.info('Booktrix Phase 2 E2E fixtures are ready.') }
-main().catch((error) => { console.error(error); process.exitCode = 1 }).finally(() => prisma.$disconnect())
+async function main() { await preflightFixtureOwnership(); for (const fixture of demoBusinesses) await seedDemoBusiness(fixture); await seedBookingJourneyFixtures(); console.info('Booktrix Phase 2 E2E fixtures are ready.') }
+if (process.argv[1]?.endsWith('seed-phase2-e2e.ts')) main().catch((error) => { console.error(error); process.exitCode = 1 }).finally(() => prisma.$disconnect())
