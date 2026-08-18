@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { createBookingHold, getActiveHold, type HoldStore } from '@/modules/scheduling/holds'
-import { schedulingRequestLockKeys } from '@/modules/scheduling/locking'
+import { bookingHoldTransactionOptions, createBookingHold, getActiveHold, type HoldStore } from '@/modules/scheduling/holds'
+import { schedulingLockBucketAt, schedulingRequestLockKeys } from '@/modules/scheduling/locking'
 
 const segment = {
   offeringId: 'offering-1',
@@ -29,6 +29,7 @@ function memoryStore(): HoldStore {
     },
     findByIdempotencyKey: async (key) => Array.from(holds.values()).find((hold) => hold.idempotencyKey === key) ?? null,
     findByToken: async (token) => holds.get(token) ?? null,
+    validateRequestScope: async () => undefined,
     acquireRequestLocks: async () => undefined,
     deriveSegments: async (input) => input.segments.map((requested) => ({
       ...segment,
@@ -55,12 +56,25 @@ function memoryStore(): HoldStore {
 }
 
 describe('booking holds', () => {
+  it('allows hosted database transactions enough time to finish validation', () => {
+    expect(bookingHoldTransactionOptions).toMatchObject({ maxWait: 20_000, timeout: 20_000 })
+  })
+
   it('returns the original hold for a repeated idempotency key', async () => {
     const store = memoryStore()
     const input = { businessId: 'business-1', checkoutIdentity: 'browser-1', idempotencyKey: 'checkout-1', segments: [segment] }
     const first = await createBookingHold(input, { store, now: () => new Date('2026-08-20T13:00:00.000Z') })
     const second = await createBookingHold(input, { store, now: () => new Date('2026-08-20T13:00:00.000Z') })
     expect(second.token).toBe(first.token)
+  })
+
+  it('returns an existing hold before revalidating mutable storefront scope', async () => {
+    const store = memoryStore()
+    const input = { businessId: 'business-1', checkoutIdentity: 'browser-1', idempotencyKey: 'stable-retry', segments: [segment] }
+    const first = await createBookingHold(input, { store })
+    store.validateRequestScope = async () => { throw new Error('STOREFRONT_CHANGED') }
+
+    await expect(createBookingHold(input, { store })).resolves.toMatchObject({ token: first.token })
   })
 
   it('rejects an idempotency key reused by another checkout identity', async () => {
@@ -103,19 +117,32 @@ describe('booking holds', () => {
       .rejects.toMatchObject({ code: 'SLOT_UNAVAILABLE' })
   })
 
-  it('acquires request locks before deriving server scheduling facts', async () => {
+  it('validates request scope before acquiring locks and deriving scheduling facts', async () => {
     const store = memoryStore()
     const calls: string[] = []
+    store.validateRequestScope = async () => { calls.push('validate') }
     store.acquireRequestLocks = async () => { calls.push('lock') }
     store.deriveSegments = async (input) => { calls.push('derive'); return input.segments as any }
     await createBookingHold({ businessId: 'business-1', checkoutIdentity: 'browser', idempotencyKey: 'ordered', segments: [segment] }, { store })
-    expect(calls.slice(0, 2)).toEqual(['lock', 'derive'])
+    expect(calls.slice(0, 3)).toEqual(['validate', 'lock', 'derive'])
   })
 
   it('uses the same professional lock namespace across locations', () => {
     const base = { businessId: 'business-1', membershipId: 'member-1', start: new Date('2026-08-20T14:00:00.000Z') }
     expect(schedulingRequestLockKeys({ ...base, locationId: 'location-1', offeringId: 'offering-1' }).filter((key) => key.includes(':professional:')))
       .toEqual(schedulingRequestLockKeys({ ...base, locationId: 'location-2', offeringId: 'offering-2' }).filter((key) => key.includes(':professional:')))
+  })
+
+  it('recovers the complete ISO bucket timestamp from a scheduling lock key', () => {
+    const [key] = schedulingRequestLockKeys({
+      businessId: 'business-1',
+      locationId: 'location-1',
+      offeringId: 'offering-1',
+      membershipId: 'member-1',
+      start: new Date('2026-08-25T13:00:00.000Z'),
+    })
+
+    expect(schedulingLockBucketAt(key)).toEqual(new Date('2026-08-24T00:00:00.000Z'))
   })
 
   it('does not return an expired hold as active', async () => {

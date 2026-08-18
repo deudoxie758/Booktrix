@@ -1,19 +1,21 @@
 import { z } from 'zod'
 
+const identifier = z.string().min(1).max(64)
+
 const segmentSchema = z.object({
-  offeringId: z.string().min(1),
-  membershipId: z.string().min(1),
+  offeringId: identifier,
+  membershipId: identifier,
   start: z.coerce.date(),
   attendeeCount: z.number().int().min(1),
 })
 
 const requestSchema = z.object({
-  businessId: z.string().min(1),
-  locationId: z.string().min(1),
-  customerId: z.string().min(1).nullable().optional(),
-  checkoutIdentity: z.string().min(1),
-  idempotencyKey: z.string().min(1),
-  segments: z.array(segmentSchema).min(1),
+  businessId: identifier,
+  locationId: identifier,
+  customerId: identifier.nullable().optional(),
+  checkoutIdentity: identifier,
+  idempotencyKey: identifier,
+  segments: z.array(segmentSchema).min(1).max(20),
 })
 
 export const parseBookingHoldRequest = (input: unknown) => requestSchema.parse(input)

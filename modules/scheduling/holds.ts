@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 
-import { schedulingRequestLockKeys } from './locking'
+import { schedulingLockBucketAt, schedulingRequestLockKeys } from './locking'
 import { loadSchedulingFacts, toSchedulingSnapshot } from './repository'
 import { deriveValidatedSegments } from './validation'
 
@@ -40,6 +40,7 @@ export interface HoldStore {
   findByToken(token: string): Promise<HoldRecord | null>
   findConflicts(businessId: string, segment: HoldSegment, now: Date): Promise<HoldSegment[]>
   create(hold: Omit<HoldRecord, 'consumedAt'>): Promise<HoldRecord>
+  validateRequestScope(input: { businessId: string; locationId: string; segments: RequestedHoldSegment[] }): Promise<void>
   acquireRequestLocks(input: { businessId: string; locationId: string; segments: RequestedHoldSegment[] }): Promise<void>
   deriveSegments(input: { businessId: string; locationId: string; segments: RequestedHoldSegment[] }, now: Date): Promise<HoldSegment[]>
 }
@@ -48,6 +49,23 @@ export class HoldError extends Error {
   constructor(public readonly code: 'SLOT_UNAVAILABLE' | 'HOLD_EXPIRED' | 'HOLD_NOT_FOUND' | 'IDEMPOTENCY_KEY_REUSED') {
     super(code)
   }
+}
+
+function assertIdempotentHold(existing: HoldRecord, input: {
+  businessId: string
+  customerId?: string | null
+  checkoutIdentity: string
+  locationId: string
+  segments: RequestedHoldSegment[]
+}) {
+  const sameOwner = existing.businessId === input.businessId
+    && (existing.customerId ?? null) === (input.customerId ?? null)
+    && existing.checkoutIdentity === input.checkoutIdentity
+  const sameLocation = existing.segments.length > 0
+    && existing.segments.every((segment) => segment.locationId === input.locationId)
+  const sameSegments = JSON.stringify(existing.segments.map(serializeRequestedSegment)) === JSON.stringify(input.segments.map(serializeRequestedSegment))
+  if (!sameOwner || !sameLocation || !sameSegments) throw new HoldError('IDEMPOTENCY_KEY_REUSED')
+  return existing
 }
 
 export async function createBookingHold(
@@ -65,18 +83,12 @@ export async function createBookingHold(
   return dependencies.store.transaction(async (store) => {
     const locationId = input.locationId ?? (input.segments[0] as HoldSegment | undefined)?.locationId
     if (!locationId) throw new HoldError('SLOT_UNAVAILABLE')
+    const existingBeforeLocks = await store.findByIdempotencyKey(input.idempotencyKey)
+    if (existingBeforeLocks) return assertIdempotentHold(existingBeforeLocks, { ...input, locationId })
+    await store.validateRequestScope({ businessId: input.businessId, locationId, segments: input.segments })
     await store.acquireRequestLocks({ businessId: input.businessId, locationId, segments: input.segments })
     const existing = await store.findByIdempotencyKey(input.idempotencyKey)
-    if (existing) {
-      const sameOwner = existing.businessId === input.businessId
-        && (existing.customerId ?? null) === (input.customerId ?? null)
-        && existing.checkoutIdentity === input.checkoutIdentity
-      const sameLocation = existing.segments.length > 0
-        && existing.segments.every((segment) => segment.locationId === locationId)
-      const sameSegments = JSON.stringify(existing.segments.map(serializeRequestedSegment)) === JSON.stringify(input.segments.map(serializeRequestedSegment))
-      if (!sameOwner || !sameLocation || !sameSegments) throw new HoldError('IDEMPOTENCY_KEY_REUSED')
-      return existing
-    }
+    if (existing) return assertIdempotentHold(existing, { ...input, locationId })
     const segments = await store.deriveSegments({ businessId: input.businessId, locationId, segments: input.segments }, now)
     for (const segment of segments) {
       const conflicts = await store.findConflicts(input.businessId, segment, now)
@@ -133,8 +145,14 @@ const fromPrisma = (hold: Awaited<ReturnType<typeof prisma.bookingHold.findFirst
 
 type HoldPrismaClient = typeof prisma | Prisma.TransactionClient
 
+export const bookingHoldTransactionOptions = {
+  isolationLevel: 'ReadCommitted' as const,
+  maxWait: 20_000,
+  timeout: 20_000,
+}
+
 const createPrismaHoldStore = (client: HoldPrismaClient): HoldStore => ({
-  transaction: (work) => prisma.$transaction((tx) => work(createPrismaHoldStore(tx)), { isolationLevel: 'ReadCommitted' }),
+  transaction: (work) => prisma.$transaction((tx) => work(createPrismaHoldStore(tx)), bookingHoldTransactionOptions),
   findByIdempotencyKey: async (key) => {
     const hold = await client.bookingHold.findUnique({ where: { idempotencyKey: key }, include: includeSegments })
     return hold ? fromPrisma(hold as never) : null
@@ -177,10 +195,38 @@ const createPrismaHoldStore = (client: HoldPrismaClient): HoldStore => ({
     },
     include: includeSegments,
   }) as never),
+  validateRequestScope: async (input) => {
+    const offeringIds = Array.from(new Set(input.segments.map((segment) => segment.offeringId)))
+    const membershipIds = Array.from(new Set(input.segments.map((segment) => segment.membershipId)))
+    const [location, offerings, qualifications] = await Promise.all([
+      client.location.findFirst({
+        where: { id: input.locationId, businessId: input.businessId, isActive: true, business: { status: 'PUBLISHED' } },
+        select: { id: true },
+      }),
+      client.serviceOffering.findMany({
+        where: { id: { in: offeringIds }, businessId: input.businessId, active: true, Locations: { some: { locationId: input.locationId, active: true } } },
+        select: { id: true },
+      }),
+      client.staffQualification.findMany({
+        where: {
+          offeringId: { in: offeringIds }, membershipId: { in: membershipIds }, locationId: input.locationId, active: true,
+          membership: { businessId: input.businessId, active: true, Locations: { some: { locationId: input.locationId } } },
+        },
+        select: { offeringId: true, membershipId: true },
+      }),
+    ])
+    const validOfferings = new Set(offerings.map((offering) => offering.id))
+    const pairKey = (offeringId: string, membershipId: string) => JSON.stringify([offeringId, membershipId])
+    const validPairs = new Set(qualifications.map((qualification) => pairKey(qualification.offeringId, qualification.membershipId)))
+    if (!location || offeringIds.some((id) => !validOfferings.has(id))
+      || input.segments.some((segment) => !validPairs.has(pairKey(segment.offeringId, segment.membershipId)))) {
+      throw new HoldError('SLOT_UNAVAILABLE')
+    }
+  },
   acquireRequestLocks: async (input) => {
     const keys = Array.from(new Set(input.segments.flatMap((segment) => schedulingRequestLockKeys({ businessId: input.businessId, locationId: input.locationId, ...segment })))).sort()
     for (const key of keys) {
-      const bucketAt = new Date(key.slice(key.lastIndexOf(':') + 1))
+      const bucketAt = schedulingLockBucketAt(key)
       await client.schedulingLock.upsert({
         where: { lockKey: key },
         update: { bucketAt },

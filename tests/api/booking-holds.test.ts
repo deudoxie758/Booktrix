@@ -46,4 +46,24 @@ describe('booking hold API contract', () => {
       body: { code: 'SLOT_UNAVAILABLE', message: 'That time is no longer available. Please choose another.' },
     })
   })
+
+  it('bounds public hold size before database locks are acquired', () => {
+    const segment = {
+      offeringId: 'service-1',
+      membershipId: 'member-1',
+      start: '2026-08-20T14:00:00.000Z',
+      attendeeCount: 1,
+    }
+    const request = {
+      businessId: 'business-1',
+      locationId: 'location-1',
+      checkoutIdentity: 'browser-1',
+      idempotencyKey: 'request-1',
+      segments: Array.from({ length: 21 }, () => segment),
+    }
+
+    expect(() => parseBookingHoldRequest(request)).toThrow()
+    expect(() => parseBookingHoldRequest({ ...request, segments: [segment], idempotencyKey: 'x'.repeat(64) })).not.toThrow()
+    expect(() => parseBookingHoldRequest({ ...request, segments: [segment], idempotencyKey: 'x'.repeat(65) })).toThrow()
+  })
 })
