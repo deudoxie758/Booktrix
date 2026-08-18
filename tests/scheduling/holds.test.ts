@@ -75,6 +75,14 @@ describe('booking holds', () => {
     )).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' })
   })
 
+  it('rejects an idempotency key reused for a different location', async () => {
+    const store = memoryStore()
+    const request = { businessId: 'business-1', checkoutIdentity: 'browser-1', idempotencyKey: 'location-bound', segments: [segment] }
+    await createBookingHold({ ...request, locationId: 'location-1' }, { store })
+    await expect(createBookingHold({ ...request, locationId: 'location-2' }, { store }))
+      .rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' })
+  })
+
   it('allows only one simultaneous hold at capacity one', async () => {
     const store = memoryStore()
     const dependencies = { store, now: () => new Date('2026-08-20T13:00:00.000Z') }

@@ -478,7 +478,6 @@ model BookingSegment {
     offering         ServiceOffering @relation(fields: [offeringId], references: [id])
     location         Location @relation(fields: [locationId], references: [id])
     membership       BusinessMembership? @relation(fields: [membershipId], references: [id])
-    Overrides        BookingOverride[]
     createdAt        DateTime @default(now())
     updatedAt        DateTime @updatedAt
 
@@ -494,7 +493,6 @@ model BookingOverride {
     reason         String @db.Text
     previousValues Json
     resultingValues Json
-    segment        BookingSegment @relation(fields: [segmentId], references: [id], onDelete: Restrict)
     createdAt      DateTime @default(now())
 
     @@index([segmentId, createdAt])

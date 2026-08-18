@@ -71,8 +71,10 @@ export async function createBookingHold(
       const sameOwner = existing.businessId === input.businessId
         && (existing.customerId ?? null) === (input.customerId ?? null)
         && existing.checkoutIdentity === input.checkoutIdentity
+      const sameLocation = existing.segments.length > 0
+        && existing.segments.every((segment) => segment.locationId === locationId)
       const sameSegments = JSON.stringify(existing.segments.map(serializeRequestedSegment)) === JSON.stringify(input.segments.map(serializeRequestedSegment))
-      if (!sameOwner || !sameSegments) throw new HoldError('IDEMPOTENCY_KEY_REUSED')
+      if (!sameOwner || !sameLocation || !sameSegments) throw new HoldError('IDEMPOTENCY_KEY_REUSED')
       return existing
     }
     const segments = await store.deriveSegments({ businessId: input.businessId, locationId, segments: input.segments }, now)

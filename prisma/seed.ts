@@ -6,7 +6,6 @@ const prisma = new PrismaClient()
 
 async function main() {
 	// Clear existing data
-	await prisma.bookingOverride.deleteMany()
 	await prisma.bookingSegment.deleteMany()
 	await prisma.bookingOrder.deleteMany()
 	await prisma.bookingHoldSegment.deleteMany()

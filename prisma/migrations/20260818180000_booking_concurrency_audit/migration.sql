@@ -8,11 +8,9 @@ CREATE UNIQUE INDEX `BookingOrder_sourceHoldToken_key` ON `BookingOrder`(`source
 ALTER TABLE `BookingOrder` ADD CONSTRAINT `BookingOrder_sourceHoldToken_fkey`
     FOREIGN KEY (`sourceHoldToken`) REFERENCES `BookingHold`(`token`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- Replace the cascading override relation so immutable evidence prevents
--- deletion of its booking segment.
+-- Override evidence retains the historical segment identifier without a
+-- foreign key so fixture cleanup cannot cascade or be blocked by it.
 ALTER TABLE `BookingOverride` DROP FOREIGN KEY `BookingOverride_segmentId_fkey`;
-ALTER TABLE `BookingOverride` ADD CONSTRAINT `BookingOverride_segmentId_fkey`
-    FOREIGN KEY (`segmentId`) REFERENCES `BookingSegment`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- Booking overrides are append-only evidence.
 CREATE TRIGGER `BookingOverride_prevent_update`
