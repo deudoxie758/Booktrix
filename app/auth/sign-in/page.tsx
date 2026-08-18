@@ -2,6 +2,7 @@
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { buildPostAuthRedirectUrl } from '@/modules/identity/post-auth'
 
 export default function SignInPage() {
 	const [isSignUp, setIsSignUp] = useState(false)
@@ -11,7 +12,7 @@ export default function SignInPage() {
 	const [isLoading, setIsLoading] = useState(false)
 	const [error, setError] = useState('')
 	const searchParams = useSearchParams()
-	const callbackUrl = searchParams.get('callbackUrl') || `${window.location.origin}/api/auth/redirect`
+	const callbackUrl = buildPostAuthRedirectUrl(searchParams.get('callbackUrl'), window.location.origin)
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
@@ -29,7 +30,7 @@ export default function SignInPage() {
 				const data = await res.json()
 				if (res.ok) {
 					// Auto sign in after signup
-					await signIn('credentials', { email, password, callbackUrl })
+					await signIn('credentials', { email, password, callbackUrl, redirect: true })
 				} else {
 					setError(data.error || 'Failed to sign up')
 					setIsLoading(false)
@@ -39,7 +40,7 @@ export default function SignInPage() {
 				setIsLoading(false)
 			}
 		} else {
-			// Sign in - let NextAuth handle the redirect via the admin redirect route
+			// Route through the server so Phase 2 membership roles choose the right workspace.
 			await signIn('credentials', {
 				email,
 				password,

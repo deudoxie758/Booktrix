@@ -2,7 +2,8 @@
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
+import { buildPostAuthRedirectUrl } from '@/modules/identity/post-auth'
 
 export default function SignUpPage() {
 	const [email, setEmail] = useState('')
@@ -12,8 +13,8 @@ export default function SignUpPage() {
 	const [isLoading, setIsLoading] = useState(false)
 	const [error, setError] = useState('')
 	const [success, setSuccess] = useState('')
-	const router = useRouter()
-	const callbackUrl = `${window.location.origin}/api/auth/redirect`
+	const searchParams = useSearchParams()
+	const callbackUrl = buildPostAuthRedirectUrl(searchParams.get('callbackUrl'), window.location.origin)
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()

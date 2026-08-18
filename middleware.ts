@@ -3,17 +3,10 @@ import { NextResponse } from 'next/server'
 
 export default withAuth(
 	function middleware(req) {
-		const token = req.nextauth.token
 		const path = req.nextUrl.pathname
 
-		// Redirect OWNER and EMPLOYEE to manager dashboard after login
-		if (
-			path === '/dashboard' &&
-			token?.role &&
-			['OWNER', 'EMPLOYEE'].includes(token.role as string)
-		) {
-			return NextResponse.redirect(new URL('/manager', req.url))
-		}
+		// Legacy role pages cannot determine contextual Phase 2 membership access.
+		if (path === '/dashboard' || path === '/manager' || path.startsWith('/manager/')) return NextResponse.redirect(new URL('/api/auth/redirect', req.url))
 
 		return NextResponse.next()
 	},
