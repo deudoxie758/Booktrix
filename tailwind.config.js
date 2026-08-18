@@ -6,7 +6,16 @@ module.exports = {
 	],
 	theme: {
 		extend: {
+			fontFamily: {
+				display: ['Georgia', 'Cambria', 'Times New Roman', 'serif'],
+				sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+			},
 			colors: {
+				cream: { 50: '#fffdfa', 100: '#faf6f1', 200: '#f3ebe3' },
+				cocoa: { 400: '#9a7b6f', 600: '#73574d', 700: '#60483f', 800: '#4c3932', 900: '#382b27', 950: '#251d1a' },
+				clay: { 100: '#f1dfd7', 200: '#e5c8bb', 400: '#c38f7b', 500: '#ac7561', 600: '#965d49' },
+				sand: { 100: '#f5efe9', 200: '#e9ddd2', 300: '#d8c7ba' },
+				danger: '#b42318',
 				nude: {
 					50: '#fffaf5',
 					100: '#fff1e6',
@@ -32,6 +41,7 @@ module.exports = {
 					900: '#134e4a',
 				},
 			},
+			boxShadow: { soft: '0 18px 55px rgba(56, 43, 39, 0.09)' },
 		},
 	},
 	plugins: [],

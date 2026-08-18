@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { requireActor } from '@/modules/identity/session'
+import { requireBusinessAccess } from '@/modules/organizations/access'
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    const actorId = (session?.user as any)?.id
-    const role = (session?.user as any)?.role
-    if (!actorId || !['OWNER', 'EMPLOYEE'].includes(role)) {
-      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
-    }
+    const actor = await requireActor()
 
     const body = await req.json()
     const { bookingId, status, paymentStatus, reason } = body
@@ -25,6 +20,12 @@ export async function POST(req: Request) {
 
     const booking = await prisma.booking.findUnique({ where: { id: bookingId } })
     if (!booking) return NextResponse.json({ ok: false, error: 'Booking not found' }, { status: 404 })
+    const business = await prisma.business.findUnique({ where: { legacySpaId: booking.spaId } })
+    if (!business) return NextResponse.json({ ok: false, error: 'Business migration required' }, { status: 409 })
+    const access = await requireBusinessAccess(business.id, ['OWNER', 'MANAGER', 'ACCOUNTS', 'STAFF'])
+    if (paymentStatus && !['OWNER', 'MANAGER', 'ACCOUNTS'].includes(access.membership.role)) {
+      return NextResponse.json({ ok: false, error: 'Finance permission required' }, { status: 403 })
+    }
 
     const updateData: Record<string, any> = {}
     if (status) {
@@ -68,8 +69,8 @@ export async function POST(req: Request) {
       await prisma.auditLog.create({
         data: {
           bookingId: bookingId,
-          actorId,
-          actorRole: role as any,
+          actorId: actor.id,
+          actorRole: actor.platformRole,
           action: 'update_status',
           details: {
             oldStatus: booking.status,
@@ -77,6 +78,8 @@ export async function POST(req: Request) {
             oldPaymentStatus: booking.paymentStatus,
             newPaymentStatus: paymentStatus || booking.paymentStatus,
             reason: reason?.trim() || null,
+            businessId: business.id,
+            businessRole: access.membership.role,
           },
         },
       })

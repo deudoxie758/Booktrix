@@ -1,11 +1,12 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from './auth'
+import type { Role } from '@prisma/client'
+import { requireActor } from '@/modules/identity/session'
+
+export { requireBusinessAccess, requireLocationAccess, requirePlatformAdmin } from '@/modules/organizations/access'
 
 export async function requireRole(
-	roles: Array<'OWNER' | 'EMPLOYEE' | 'ACCOUNTANT' | 'USER' | 'ADMIN'>
+	roles: Role[],
 ) {
-	const session = await getServerSession(authOptions)
-	if (!session || !roles.includes(session.user.role as any))
-		throw new Error('Forbidden')
-	return session
+	const actor = await requireActor()
+	if (!roles.includes(actor.platformRole)) throw new Error('Forbidden')
+	return actor
 }

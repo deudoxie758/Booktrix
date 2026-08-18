@@ -6,6 +6,12 @@ const prisma = new PrismaClient()
 
 async function main() {
 	// Clear existing data
+	await prisma.locationAssignment.deleteMany()
+	await prisma.businessApplication.deleteMany()
+	await prisma.businessSetup.deleteMany()
+	await prisma.businessMembership.deleteMany()
+	await prisma.location.deleteMany()
+	await prisma.business.deleteMany()
 	await prisma.cancellation.deleteMany()
 	await prisma.booking.deleteMany()
 	await prisma.employee.deleteMany()
@@ -47,9 +53,11 @@ async function main() {
 	await prisma.user.create({
 		data: { email: 'ryan.kelly@example.com', name: 'Ryan Kelly', hashedPassword: password, role: Role.USER },
 	})
-	await prisma.user.create({
+	const accountant = await prisma.user.create({
 		data: { email: 'accountant@example.com', name: 'Ayesha Parker', hashedPassword: password, role: Role.ACCOUNTANT },
 	})
+	const manager = await prisma.user.create({ data: { email: 'manager@example.com', name: 'Kai Joseph', hashedPassword: password, role: Role.USER } })
+	const staff = await prisma.user.create({ data: { email: 'staff@example.com', name: 'Amara Felix', hashedPassword: password, role: Role.USER } })
 
 	// ─── Spa 1: Emerald Bay Spa (Massage & Facial) ───────────────────────────
 	const spa1 = await prisma.spa.create({
@@ -467,6 +475,21 @@ async function main() {
 		{ spaId: spa15.id, name: 'Theo Deterville', bio: 'Trained in traditional Saint Lucian massage and authentic Caribbean body treatment techniques', schedule: { tue: ['09:00-19:00'], thu: ['09:00-19:00'], sat: ['10:00-20:00'] } },
 	]})
 
+	const legacySpas = await prisma.spa.findMany()
+	for (const spa of legacySpas) {
+		const business = await prisma.business.create({ data: { name: spa.name, slug: spa.slug, status: 'SETUP', legacySpaId: spa.id } })
+		const location = await prisma.location.create({ data: { businessId: business.id, name: spa.name, slug: 'main', address: spa.address, phone: spa.phone, email: spa.email, businessHours: spa.businessHours } })
+		const ownerMembership = await prisma.businessMembership.create({ data: { businessId: business.id, userId: spa.ownerId, role: 'OWNER' } })
+		await prisma.locationAssignment.create({ data: { membershipId: ownerMembership.id, locationId: location.id } })
+		await prisma.businessSetup.create({ data: { businessId: business.id, profileComplete: true, firstLocationComplete: true } })
+		if (spa.id === spa1.id) {
+			for (const [userId, role] of [[manager.id, 'MANAGER'], [accountant.id, 'ACCOUNTS'], [staff.id, 'STAFF']] as const) {
+				const membership = await prisma.businessMembership.create({ data: { businessId: business.id, userId, role } })
+				await prisma.locationAssignment.create({ data: { membershipId: membership.id, locationId: location.id } })
+			}
+		}
+	}
+
 	console.log('✅ Seeded successfully!')
 	console.log('\n📊 Summary:')
 	console.log(`- 4 Users (3 spa owners, 1 customer)`)
@@ -474,6 +497,9 @@ async function main() {
 	console.log(`\n🔑 Login credentials:`)
 	console.log(`  Customer: customer@example.com / password123`)
 	console.log(`  Spa Owner: owner@example.com / password123`)
+	console.log(`  Manager: manager@example.com / password123`)
+	console.log(`  Accounts: accountant@example.com / password123`)
+	console.log(`  Staff: staff@example.com / password123`)
 }
 
 main()

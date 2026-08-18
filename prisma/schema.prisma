@@ -15,6 +15,32 @@ enum Role {
     ADMIN
 }
 
+enum BusinessRole {
+    OWNER
+    MANAGER
+    ACCOUNTS
+    STAFF
+}
+
+enum BusinessStatus {
+    APPLICATION
+    UNDER_REVIEW
+    APPROVED
+    SETUP
+    PUBLISHED
+    REJECTED
+    SUSPENDED
+    ARCHIVED
+}
+
+enum ApplicationStatus {
+    DRAFT
+    SUBMITTED
+    UNDER_REVIEW
+    APPROVED
+    REJECTED
+}
+
 enum BookingStatus {
     PENDING
     CONFIRMED
@@ -49,8 +75,109 @@ model User {
     Reviews        Review[]
     Notifications  Notification[]
     SupportTickets SupportTicket[]
+    BusinessMemberships BusinessMembership[]
+    SubmittedBusinessApplications BusinessApplication[] @relation("BusinessApplicant")
+    ReviewedBusinessApplications BusinessApplication[] @relation("BusinessReviewer")
     createdAt      DateTime  @default(now())
     updatedAt      DateTime  @updatedAt
+}
+
+model Business {
+    id              String               @id @default(cuid())
+    name            String
+    slug            String               @unique
+    status          BusinessStatus       @default(APPLICATION)
+    defaultCurrency String               @default("XCD")
+    legacySpaId     String?              @unique
+    Memberships     BusinessMembership[]
+    Locations       Location[]
+    Applications    BusinessApplication[]
+    Setup           BusinessSetup?
+    createdAt       DateTime             @default(now())
+    updatedAt       DateTime             @updatedAt
+}
+
+model Location {
+    id          String               @id @default(cuid())
+    businessId  String
+    business    Business             @relation(fields: [businessId], references: [id])
+    name        String
+    slug        String
+    timezone    String               @default("America/St_Lucia")
+    address     String?
+    phone       String?
+    email       String?
+    businessHours Json?
+    isActive    Boolean              @default(true)
+    Assignments LocationAssignment[]
+    createdAt   DateTime             @default(now())
+    updatedAt   DateTime             @updatedAt
+
+    @@unique([businessId, slug])
+    @@index([businessId, isActive])
+}
+
+model BusinessMembership {
+    id         String               @id @default(cuid())
+    businessId String
+    userId     String
+    role       BusinessRole
+    active     Boolean              @default(true)
+    business   Business             @relation(fields: [businessId], references: [id])
+    user       User                 @relation(fields: [userId], references: [id])
+    Locations  LocationAssignment[]
+    createdAt  DateTime             @default(now())
+    updatedAt  DateTime             @updatedAt
+
+    @@unique([businessId, userId])
+    @@index([userId, active])
+}
+
+model LocationAssignment {
+    membershipId String
+    locationId   String
+    membership   BusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+    location     Location           @relation(fields: [locationId], references: [id], onDelete: Cascade)
+    createdAt    DateTime           @default(now())
+
+    @@id([membershipId, locationId])
+    @@index([locationId])
+}
+
+model BusinessApplication {
+    id             String            @id @default(cuid())
+    businessId     String
+    applicantId    String
+    status         ApplicationStatus @default(DRAFT)
+    ownerName      String
+    email          String
+    phone          String
+    address        String
+    industry       String
+    serviceSummary String            @db.Text
+    decisionNote   String?           @db.Text
+    submittedAt    DateTime?
+    reviewedAt     DateTime?
+    reviewerId     String?
+    business       Business          @relation(fields: [businessId], references: [id])
+    applicant      User              @relation("BusinessApplicant", fields: [applicantId], references: [id])
+    reviewer       User?             @relation("BusinessReviewer", fields: [reviewerId], references: [id])
+    createdAt      DateTime          @default(now())
+    updatedAt      DateTime          @updatedAt
+
+    @@index([status, submittedAt])
+    @@index([applicantId])
+}
+
+model BusinessSetup {
+    businessId           String   @id
+    profileComplete      Boolean  @default(false)
+    firstLocationComplete Boolean @default(false)
+    policiesAccepted     Boolean  @default(false)
+    publicationReady     Boolean  @default(false)
+    business             Business @relation(fields: [businessId], references: [id])
+    createdAt            DateTime @default(now())
+    updatedAt            DateTime @updatedAt
 }
 
 model Spa {

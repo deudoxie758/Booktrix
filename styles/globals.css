@@ -4,12 +4,16 @@
 
 @layer base {
 	:root {
-		--color-primary: 210 20% 98%;
-		--color-accent: 25 40% 85%;
-		--color-warm: 20 30% 90%;
+		color-scheme: light;
+		font-synthesis: none;
 	}
 
-	input, textarea, select, button {
-		color: #000; /* black text for form controls */
+	html { scroll-behavior: smooth; }
+	body { margin: 0; background: #faf6f1; color: #251d1a; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+	::selection { background: #e5c8bb; color: #251d1a; }
+	input, textarea, select, button { font: inherit; }
+	@media (prefers-reduced-motion: reduce) {
+		html { scroll-behavior: auto; }
+		*, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 	}
 }

@@ -1,0 +1,1 @@
+import { WorkspacePlaceholder } from '@/components/business/WorkspacePlaceholder'; export default function Page(){return <WorkspacePlaceholder title="Customers" description="Authorized customer histories and intake details will appear here."/>}

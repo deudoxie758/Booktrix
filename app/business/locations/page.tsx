@@ -1,0 +1,2 @@
+import { requireWorkspaceRole } from '@/modules/organizations/context'
+export default async function LocationsPage(){const {availableLocations}=await requireWorkspaceRole(['OWNER','MANAGER','ACCOUNTS']);return <div className="grid gap-4 sm:grid-cols-2">{availableLocations.map(location=><div key={location.id} className="rounded-2xl bg-white p-6"><h2 className="font-display text-2xl">{location.name}</h2><p className="mt-2 text-cocoa-600">{location.address ?? 'Address not set'}</p></div>)}</div>}

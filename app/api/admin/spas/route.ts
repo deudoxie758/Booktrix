@@ -1,19 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { Role } from '@prisma/client'
+import { requirePlatformAdmin } from '@/modules/organizations/access'
 
 async function getAdminSession() {
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as any)?.id
-  const role = (session?.user as any)?.role
-
-  if (!userId || role !== 'ADMIN') {
-    return null
-  }
-
-  return { userId, role }
+	try { const actor = await requirePlatformAdmin(); return { userId: actor.id, role: actor.platformRole } }
+	catch { return null }
 }
 
 export async function GET() {
