@@ -1,26 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requirePlatformAdmin } from '@/modules/organizations/access'
 import { hash } from 'bcryptjs'
 import { Role } from '@prisma/client'
 
-const ADMIN_ROLES: Role[] = ['ADMIN']
-
 async function getAdminSession() {
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as any)?.id
-  const role = (session?.user as any)?.role
-
-  if (!userId || !ADMIN_ROLES.includes(role)) {
-    return null
-  }
-
-  return { userId, role }
+	try { const actor = await requirePlatformAdmin(); return { userId: actor.id, role: actor.platformRole } }
+	catch { return null }
 }
 
-function isValidRole(role: any): role is Role {
-  return ['USER', 'OWNER', 'EMPLOYEE', 'ACCOUNTANT', 'ADMIN'].includes(role)
+function isValidRole(role: unknown): role is Role {
+  return typeof role === 'string' && ['USER', 'OWNER', 'EMPLOYEE', 'ACCOUNTANT', 'ADMIN'].includes(role)
 }
 
 export async function GET() {
@@ -102,7 +92,7 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
 
-  const data: any = {}
+  const data: { email?: string; name?: string; role?: Role; hashedPassword?: string } = {}
   if (email) data.email = email
   if (name) data.name = name
   if (isValidRole(role)) data.role = role
