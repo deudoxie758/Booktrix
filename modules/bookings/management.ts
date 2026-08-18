@@ -2,7 +2,7 @@ import type { BookingSegmentStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { requireLocationAccess } from '@/modules/organizations/access'
-import { schedulingLockKeys } from '@/modules/scheduling/locking'
+import { schedulingRequestLockKeys } from '@/modules/scheduling/locking'
 import { loadSchedulingFacts, toSchedulingSnapshot } from '@/modules/scheduling/repository'
 import { deriveValidatedSegments } from '@/modules/scheduling/validation'
 
@@ -35,19 +35,13 @@ async function createManagedBookingRecord(input: ManagedBookingInput, options: {
     const rangeStart = new Date(Math.min(...input.segments.map((segment) => segment.startsAt.getTime())) - 86_400_000)
     const rangeEnd = new Date(Math.max(...input.segments.map((segment) => segment.startsAt.getTime())) + 86_400_000)
     const query = { businessId: input.businessId, locationId: input.locationId, offeringIds: input.segments.map((segment) => segment.offeringId), rangeStart, rangeEnd }
-    let facts = await loadSchedulingFacts(query, tx)
-    let derived = deriveValidatedSegments({
-      businessId: input.businessId,
-      locationId: input.locationId,
-      segments: input.segments.map((segment) => ({ offeringId: segment.offeringId, membershipId: segment.membershipId, start: segment.startsAt, attendeeCount: segment.attendeeCount })),
-    }, toSchedulingSnapshot(facts), { overrideAvailability: options.override })
-    const lockKeys = Array.from(new Set(derived.flatMap((segment) => schedulingLockKeys({ businessId: input.businessId, ...segment })))).sort()
+    const lockKeys = Array.from(new Set(input.segments.flatMap((segment) => schedulingRequestLockKeys({ businessId: input.businessId, locationId: input.locationId, offeringId: segment.offeringId, membershipId: segment.membershipId, start: segment.startsAt })))).sort()
     for (const lockKey of lockKeys) {
       const bucketAt = new Date(lockKey.slice(lockKey.lastIndexOf(':') + 1))
       await tx.schedulingLock.upsert({ where: { lockKey }, update: { bucketAt }, create: { lockKey, businessId: input.businessId, locationId: input.locationId, bucketAt } })
     }
-    facts = await loadSchedulingFacts(query, tx)
-    derived = deriveValidatedSegments({
+    const facts = await loadSchedulingFacts({ ...query, membershipIds: input.segments.map((segment) => segment.membershipId) }, tx)
+    const derived = deriveValidatedSegments({
       businessId: input.businessId,
       locationId: input.locationId,
       segments: input.segments.map((segment) => ({ offeringId: segment.offeringId, membershipId: segment.membershipId, start: segment.startsAt, attendeeCount: segment.attendeeCount })),
@@ -81,7 +75,7 @@ async function createManagedBookingRecord(input: ManagedBookingInput, options: {
       }
     }
     return order
-  })
+  }, { isolationLevel: 'ReadCommitted' })
 }
 
 const defaults: ManagementDependencies = {

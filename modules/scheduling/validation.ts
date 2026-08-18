@@ -136,10 +136,9 @@ export function deriveValidatedSegments(
       || !matchingRecurringInterval(occupiedInterval, professional.schedules, snapshot.location.timezone)
       || professional.timeOff.some((interval) => intervalsOverlap(interval, occupiedInterval)))) throw unavailable()
 
-    const reserved = snapshot.occupied
-      .filter((item) => item.membershipId === professional.membershipId && intervalsOverlap(item, occupiedInterval))
-      .reduce((total, item) => total + item.attendeeCount, 0)
-    if (!options.overrideAvailability && reserved + requested.attendeeCount > offering.capacity) throw unavailable()
+    const professionalConflict = snapshot.occupied
+      .some((item) => item.membershipId === professional.membershipId && intervalsOverlap(item, occupiedInterval))
+    if (!options.overrideAvailability && professionalConflict) throw unavailable()
 
     return {
       offeringId: offering.id,

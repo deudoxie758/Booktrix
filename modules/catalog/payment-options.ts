@@ -32,3 +32,25 @@ export function calculatePaymentAmounts(input: {
 
   return { dueOnlineCents, dueAtAppointmentCents: input.subtotalCents - dueOnlineCents }
 }
+
+export function calculateBookingPaymentAmounts(input: {
+  choice: CatalogPaymentChoice
+  segments: Array<{
+    priceCents: number
+    depositKind?: CatalogDepositKind | null
+    depositValue?: number | null
+  }>
+}): PaymentAmounts {
+  return input.segments.reduce<PaymentAmounts>((total, segment) => {
+    const amounts = calculatePaymentAmounts({
+      subtotalCents: segment.priceCents,
+      choice: input.choice,
+      depositKind: segment.depositKind,
+      depositValue: segment.depositValue,
+    })
+    return {
+      dueOnlineCents: total.dueOnlineCents + amounts.dueOnlineCents,
+      dueAtAppointmentCents: total.dueAtAppointmentCents + amounts.dueAtAppointmentCents,
+    }
+  }, { dueOnlineCents: 0, dueAtAppointmentCents: 0 })
+}

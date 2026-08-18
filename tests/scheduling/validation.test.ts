@@ -72,6 +72,17 @@ describe('scheduling validation', () => {
     }, multi)).toThrow('INVALID_SEQUENCE')
   })
 
+  it('rejects any overlapping appointment for the professional even when attendee capacity remains', () => {
+    expect(() => deriveValidatedSegments({
+      businessId: 'business-1', locationId: 'location-1',
+      segments: [{ offeringId: 'service-1', membershipId: 'member-1', start: new Date('2026-08-20T14:00:00.000Z'), attendeeCount: 1 }],
+    }, {
+      ...snapshot,
+      offerings: [{ ...snapshot.offerings[0]!, capacity: 10 }],
+      occupied: [{ membershipId: 'member-1', start: new Date('2026-08-20T14:30:00.000Z'), end: new Date('2026-08-20T15:30:00.000Z'), attendeeCount: 1 }],
+    })).toThrow('SLOT_UNAVAILABLE')
+  })
+
   it('expands recurring weekday hours in America/St_Lucia across a date range', () => {
     const intervals = recurringIntervalsForRange(
       [{ weekday: 4, startMinute: 9 * 60, endMinute: 17 * 60 }],

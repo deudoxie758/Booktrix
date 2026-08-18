@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type { HoldRecord } from '@/modules/scheduling/holds'
-import { schedulingLockKeys } from '@/modules/scheduling/locking'
+import { schedulingRequestLockKeys } from '@/modules/scheduling/locking'
 import { loadSchedulingFacts, toSchedulingSnapshot } from '@/modules/scheduling/repository'
 import { deriveValidatedSegments } from '@/modules/scheduling/validation'
 
@@ -26,6 +26,7 @@ const mappedOrder = (order: any) => ({
   idempotencyKey: order.idempotencyKey,
   businessId: order.businessId,
   customerId: order.customerId,
+  holdToken: order.sourceHoldToken,
   status: order.status,
   subtotalCents: order.subtotalCents,
   dueOnlineCents: order.dueOnlineCents,
@@ -54,10 +55,13 @@ const samePersistedSegment = (derived: HoldRecord['segments'][number], held: Hol
 
 export function createPrismaOrderStore(client: Client = prisma): BookingOrderStore {
   return {
-    transaction: (work) => prisma.$transaction((tx) => work(createPrismaOrderStore(tx))),
+    transaction: (work) => prisma.$transaction((tx) => work(createPrismaOrderStore(tx)), { isolationLevel: 'ReadCommitted' }),
     findByIdempotencyKey: async (key) => {
       const order = await client.bookingOrder.findUnique({ where: { idempotencyKey: key }, include: { Segments: true, PaymentRequest: true } })
       return order ? mappedOrder(order) : null
+    },
+    acquireHoldLock: async (token) => {
+      await client.$queryRaw`SELECT id FROM BookingHold WHERE token = ${token} FOR UPDATE`
     },
     getActiveHold: async (token) => {
       const hold = await client.bookingHold.findUniqueOrThrow({ where: { token }, include: { Segments: true } })
@@ -65,7 +69,7 @@ export function createPrismaOrderStore(client: Client = prisma): BookingOrderSto
     },
     getOfferings: (ids, businessId) => client.serviceOffering.findMany({ where: { id: { in: ids }, businessId, active: true, business: { status: 'PUBLISHED' } }, select: { id: true, confirmationMode: true, allowFullPayment: true, allowDeposit: true, allowCash: true, depositKind: true, depositValue: true } }),
     revalidateHold: async (hold, now) => {
-      const lockKeys = Array.from(new Set(hold.segments.flatMap((segment) => schedulingLockKeys({ businessId: hold.businessId, ...segment })))).sort()
+      const lockKeys = Array.from(new Set(hold.segments.flatMap((segment) => schedulingRequestLockKeys({ businessId: hold.businessId, ...segment })))).sort()
       for (const lockKey of lockKeys) {
         const bucketAt = new Date(lockKey.slice(lockKey.lastIndexOf(':') + 1))
         await client.schedulingLock.upsert({
@@ -78,6 +82,7 @@ export function createPrismaOrderStore(client: Client = prisma): BookingOrderSto
         businessId: hold.businessId,
         locationId: hold.segments[0]!.locationId,
         offeringIds: hold.segments.map((segment) => segment.offeringId),
+        membershipIds: hold.segments.map((segment) => segment.membershipId),
         rangeStart: new Date(Math.min(...hold.segments.map((segment) => segment.occupiedStart.getTime()))),
         rangeEnd: new Date(Math.max(...hold.segments.map((segment) => segment.occupiedEnd.getTime()))),
         excludeHoldToken: hold.token,
@@ -99,6 +104,7 @@ export function createPrismaOrderStore(client: Client = prisma): BookingOrderSto
     create: async (input) => mappedOrder(await client.bookingOrder.create({
       data: {
         idempotencyKey: input.idempotencyKey,
+        sourceHoldToken: input.holdToken,
         businessId: input.businessId,
         customerId: input.customerId,
         status: input.status,
@@ -111,7 +117,10 @@ export function createPrismaOrderStore(client: Client = prisma): BookingOrderSto
       },
       include: { Segments: true, PaymentRequest: true },
     })),
-    consumeHold: async (token, consumedAt) => { await client.bookingHold.update({ where: { token }, data: { consumedAt } }) },
+    consumeHoldIfActive: async (token, consumedAt) => {
+      const result = await client.bookingHold.updateMany({ where: { token, consumedAt: null, expiresAt: { gt: consumedAt } }, data: { consumedAt } })
+      return result.count === 1
+    },
   }
 }
 

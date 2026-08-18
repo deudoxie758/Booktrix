@@ -383,6 +383,7 @@ model BookingHold {
     business       Business @relation(fields: [businessId], references: [id])
     customer       User? @relation(fields: [customerId], references: [id])
     Segments       BookingHoldSegment[]
+    Order          BookingOrder?
     createdAt      DateTime @default(now())
     updatedAt      DateTime @updatedAt
 
@@ -417,6 +418,8 @@ model BookingOrder {
     customerId          String?
     legacyBookingId     String? @unique
     idempotencyKey      String @unique
+    sourceHoldToken     String? @unique
+    sourceHold          BookingHold? @relation(fields: [sourceHoldToken], references: [token], onDelete: Restrict)
     origin              BookingOrigin @default(CUSTOMER)
     status              BookingOrderStatus @default(DRAFT)
     customerName        String?
@@ -491,7 +494,7 @@ model BookingOverride {
     reason         String @db.Text
     previousValues Json
     resultingValues Json
-    segment        BookingSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+    segment        BookingSegment @relation(fields: [segmentId], references: [id], onDelete: Restrict)
     createdAt      DateTime @default(now())
 
     @@index([segmentId, createdAt])

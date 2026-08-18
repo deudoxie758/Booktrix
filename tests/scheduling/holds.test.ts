@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { createBookingHold, getActiveHold, type HoldStore } from '@/modules/scheduling/holds'
+import { schedulingRequestLockKeys } from '@/modules/scheduling/locking'
 
 const segment = {
   offeringId: 'offering-1',
@@ -28,7 +29,18 @@ function memoryStore(): HoldStore {
     },
     findByIdempotencyKey: async (key) => Array.from(holds.values()).find((hold) => hold.idempotencyKey === key) ?? null,
     findByToken: async (token) => holds.get(token) ?? null,
-    findConflicts: async (candidate, now) => Array.from(holds.values()).flatMap((hold) =>
+    acquireRequestLocks: async () => undefined,
+    deriveSegments: async (input) => input.segments.map((requested) => ({
+      ...segment,
+      offeringId: requested.offeringId,
+      membershipId: requested.membershipId,
+      start: requested.start,
+      end: new Date(requested.start.getTime() + 60 * 60_000),
+      occupiedStart: requested.start,
+      occupiedEnd: new Date(requested.start.getTime() + 60 * 60_000),
+      attendeeCount: requested.attendeeCount,
+    })),
+    findConflicts: async (_businessId, candidate, now) => Array.from(holds.values()).flatMap((hold) =>
       hold.expiresAt > now && !hold.consumedAt
         ? hold.segments.filter((held) => held.membershipId === candidate.membershipId && held.occupiedStart < candidate.occupiedEnd && candidate.occupiedStart < held.occupiedEnd)
         : [],
@@ -72,6 +84,30 @@ describe('booking holds', () => {
     ])
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
     expect(results.find((result) => result.status === 'rejected')).toMatchObject({ reason: { code: 'SLOT_UNAVAILABLE' } })
+  })
+
+  it('treats a professional as exclusive across unrelated offerings regardless of capacity', async () => {
+    const store = memoryStore()
+    const first = { ...segment, offeringId: 'offering-1', capacity: 10 }
+    const second = { ...segment, offeringId: 'offering-2', capacity: 10 }
+    await createBookingHold({ businessId: 'business-1', checkoutIdentity: 'one', idempotencyKey: 'one-exclusive', segments: [first] }, { store })
+    await expect(createBookingHold({ businessId: 'business-1', checkoutIdentity: 'two', idempotencyKey: 'two-exclusive', segments: [second] }, { store }))
+      .rejects.toMatchObject({ code: 'SLOT_UNAVAILABLE' })
+  })
+
+  it('acquires request locks before deriving server scheduling facts', async () => {
+    const store = memoryStore()
+    const calls: string[] = []
+    store.acquireRequestLocks = async () => { calls.push('lock') }
+    store.deriveSegments = async (input) => { calls.push('derive'); return input.segments as any }
+    await createBookingHold({ businessId: 'business-1', checkoutIdentity: 'browser', idempotencyKey: 'ordered', segments: [segment] }, { store })
+    expect(calls.slice(0, 2)).toEqual(['lock', 'derive'])
+  })
+
+  it('uses the same professional lock namespace across locations', () => {
+    const base = { businessId: 'business-1', membershipId: 'member-1', start: new Date('2026-08-20T14:00:00.000Z') }
+    expect(schedulingRequestLockKeys({ ...base, locationId: 'location-1', offeringId: 'offering-1' }).filter((key) => key.includes(':professional:')))
+      .toEqual(schedulingRequestLockKeys({ ...base, locationId: 'location-2', offeringId: 'offering-2' }).filter((key) => key.includes(':professional:')))
   })
 
   it('does not return an expired hold as active', async () => {

@@ -10,6 +10,7 @@ export async function loadSchedulingFacts(input: {
   businessId: string
   locationId: string
   offeringIds: string[]
+  membershipIds?: string[]
   rangeStart: Date
   rangeEnd: Date
   excludeHoldToken?: string
@@ -28,8 +29,8 @@ export async function loadSchedulingFacts(input: {
     }),
     client.staffSchedule.findMany({ where: { locationId: input.locationId, membership: { businessId: input.businessId, active: true, Locations: { some: { locationId: input.locationId } } } } }),
     client.staffTimeOff.findMany({ where: { locationId: input.locationId, membership: { businessId: input.businessId }, startsAt: { lt: input.rangeEnd }, endsAt: { gt: input.rangeStart } } }),
-    client.bookingSegment.findMany({ where: { locationId: input.locationId, order: { businessId: input.businessId }, occupiedStartsAt: { lt: input.rangeEnd }, occupiedEndsAt: { gt: input.rangeStart }, status: { in: ['REQUESTED', 'CONFIRMED', 'IN_PROGRESS'] } } }),
-    client.bookingHoldSegment.findMany({ where: { locationId: input.locationId, occupiedStartsAt: { lt: input.rangeEnd }, occupiedEndsAt: { gt: input.rangeStart }, hold: { businessId: input.businessId, expiresAt: { gt: now }, consumedAt: null, token: input.excludeHoldToken ? { not: input.excludeHoldToken } : undefined } } }),
+    client.bookingSegment.findMany({ where: { membershipId: { in: input.membershipIds }, order: { businessId: input.businessId }, occupiedStartsAt: { lt: input.rangeEnd }, occupiedEndsAt: { gt: input.rangeStart }, status: { in: ['REQUESTED', 'CONFIRMED', 'IN_PROGRESS'] } } }),
+    client.bookingHoldSegment.findMany({ where: { membershipId: { in: input.membershipIds }, occupiedStartsAt: { lt: input.rangeEnd }, occupiedEndsAt: { gt: input.rangeStart }, hold: { businessId: input.businessId, expiresAt: { gt: now }, consumedAt: null, token: input.excludeHoldToken ? { not: input.excludeHoldToken } : undefined } } }),
   ])
   return { location, offerings, qualifications, schedules, timeOff, segments, holds }
 }

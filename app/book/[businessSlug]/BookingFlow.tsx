@@ -34,47 +34,67 @@ export function BookingFlow({ initialState }: { initialState: CheckoutState }) {
   const [holdError, setHoldError] = useState('')
   const alertRef = useRef<HTMLDivElement>(null)
   const holdAlertRef = useRef<HTMLDivElement>(null)
+  const checkoutAlertRef = useRef<HTMLParagraphElement>(null)
   const offerings = initialState.offerings.filter((offering) => initialState.selectedOfferingIds.includes(offering.id))
   const paymentChoices = offerings.reduce<string[]>((choices, offering, index) => index === 0 ? [...offering.paymentChoices] : choices.filter((choice) => offering.paymentChoices.includes(choice)), [])
   useEffect(() => { if (initialState.hold?.expired) alertRef.current?.focus() }, [initialState.hold?.expired])
   useEffect(() => { if (holdError) holdAlertRef.current?.focus() }, [holdError])
+  useEffect(() => { if (error) checkoutAlertRef.current?.focus() }, [error])
   const loadDate = async (value: string) => {
     setDate(value)
     setLoadingSlots(true)
-    const from = new Date(`${value}T12:00:00.000Z`).toISOString()
-    const to = new Date(`${value}T22:00:00.000Z`).toISOString()
-    const query = new URLSearchParams({ businessId: initialState.businessId ?? '', locationId, offeringIds: offerings.map((item) => item.id).join(','), attendeeCounts: offerings.map(() => '1').join(','), from, to })
-    const response = await fetch(`/api/availability?${query}`)
-    const body = await response.json()
-    setSlots(response.ok ? body.slots : [])
-    setLoadingSlots(false)
+    setHoldError('')
+    const localDayStart = new Date(`${value}T04:00:00.000Z`)
+    const from = localDayStart.toISOString()
+    const to = new Date(localDayStart.getTime() + 86_400_000).toISOString()
+    try {
+      const query = new URLSearchParams({ businessId: initialState.businessId ?? '', locationId, offeringIds: offerings.map((item) => item.id).join(','), attendeeCounts: offerings.map(() => '1').join(','), from, to })
+      const response = await fetch(`/api/availability?${query}`)
+      const body = await response.json()
+      if (!response.ok) throw new Error(typeof body.message === 'string' ? body.message : 'Availability could not be loaded. Please try again.')
+      setSlots(body.slots)
+    } catch {
+      setSlots([])
+      setHoldError('Availability could not be loaded. Please try again.')
+    } finally {
+      setLoadingSlots(false)
+    }
   }
   const reserve = async (slot: { start: string; segments: Array<Record<string, unknown>> }) => {
     setHold(null)
     setHoldError('')
-    const response = await fetch('/api/booking-holds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businessId: initialState.businessId, locationId, checkoutIdentity: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), segments: slot.segments.map((segment) => ({ offeringId: segment.offeringId, membershipId: segment.membershipId, start: segment.start, attendeeCount: segment.attendeeCount })) }) })
-    const body = await response.json()
-    if (response.ok) setHold({ token: body.token, expiresAt: body.expiresAt, expired: false })
-    else setHoldError(body.message ?? 'That time could not be reserved. Please choose another.')
+    try {
+      const response = await fetch('/api/booking-holds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businessId: initialState.businessId, locationId, checkoutIdentity: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), segments: slot.segments.map((segment) => ({ offeringId: segment.offeringId, membershipId: segment.membershipId, start: segment.start, attendeeCount: segment.attendeeCount })) }) })
+      const body = await response.json()
+      if (response.ok) setHold({ token: body.token, expiresAt: body.expiresAt, expired: false })
+      else setHoldError(body.message ?? 'That time could not be reserved. Please choose another.')
+    } catch {
+      setHoldError('That time could not be reserved. Please choose another.')
+    }
   }
   const confirm = async () => {
     if (!hold || (!payment && !initialState.rescheduleOrderId) || submitting) return
     setSubmitting(true)
     setError('')
-    if (initialState.rescheduleOrderId) {
-      const formData = new FormData()
-      formData.set('orderId', initialState.rescheduleOrderId)
-      formData.set('replacementHoldToken', hold.token)
-      const result = await rescheduleBookingAction(formData)
-      if (result.ok) setOrderId(initialState.rescheduleOrderId)
-      else if ('error' in result) setError(result.error)
-    } else {
-      const response = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ holdToken: hold.token, paymentChoice: payment, idempotencyKey: crypto.randomUUID() }) })
-      const body = await response.json()
-      if (response.ok) setOrderId(body.order.id)
-      else setError(body.error ?? 'Unable to complete this booking.')
+    try {
+      if (initialState.rescheduleOrderId) {
+        const formData = new FormData()
+        formData.set('orderId', initialState.rescheduleOrderId)
+        formData.set('replacementHoldToken', hold.token)
+        const result = await rescheduleBookingAction(formData)
+        if (result.ok) setOrderId(initialState.rescheduleOrderId)
+        else if ('error' in result) setError(result.error)
+      } else {
+        const response = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ holdToken: hold.token, paymentChoice: payment, idempotencyKey: crypto.randomUUID() }) })
+        const body = await response.json()
+        if (response.ok) setOrderId(body.order.id)
+        else setError(body.error ?? body.message ?? 'Unable to complete this booking.')
+      }
+    } catch {
+      setError('Unable to complete this booking. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
-    setSubmitting(false)
   }
   return <div className="space-y-6">
     <BookingStepper current={step} />
@@ -85,7 +105,7 @@ export function BookingFlow({ initialState }: { initialState: CheckoutState }) {
       {step === 2 && <><h2 className="mb-5 font-display text-3xl text-cocoa-950">Choose a date and time</h2><AvailabilityPicker slots={slots} loading={loadingSlots} onDate={loadDate} onSelect={reserve} />{holdError && <div ref={holdAlertRef} tabIndex={-1} role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{holdError}</div>}{hold && !hold.expired && <p role="status" className="mt-4 rounded-2xl bg-clay-100 p-4 text-sm font-semibold text-cocoa-900">Time reserved for 10 minutes.</p>}<button disabled={!date || !hold || hold.expired} onClick={() => setStep(initialState.rescheduleOrderId ? 5 : 3)} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{initialState.rescheduleOrderId ? 'Review new time' : 'Continue to details'}</button></>}
       {step === 3 && <><h2 className="font-display text-3xl text-cocoa-950">Customer details</h2><p className="mt-2 text-cocoa-600">You’ll sign in before confirming so this booking stays connected to your account.</p><button onClick={() => setStep(4)} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">Continue to payment</button></>}
       {step === 4 && <><PaymentChoice choices={paymentChoices} value={payment} onChange={setPayment} /><button disabled={!payment} onClick={() => setStep(5)} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">Review booking</button></>}
-      {step === 5 && <><h2 className="font-display text-3xl text-cocoa-950">{initialState.rescheduleOrderId ? 'Confirm your new time' : 'Review and confirm'}</h2><p className="mt-2 text-cocoa-600">{initialState.rescheduleOrderId ? 'Your original appointment stays reserved until you confirm this replacement.' : 'Your slot is reserved while checkout completes.'}</p>{error && <p role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}{orderId ? <Link href={`/profile/bookings/${orderId}`} className="mt-6 inline-flex rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">View your booking</Link> : <button disabled={submitting} onClick={confirm} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{submitting ? 'Confirming…' : initialState.rescheduleOrderId ? 'Confirm new time' : 'Confirm booking'}</button>}</>}
+      {step === 5 && <><h2 className="font-display text-3xl text-cocoa-950">{initialState.rescheduleOrderId ? 'Confirm your new time' : 'Review and confirm'}</h2><p className="mt-2 text-cocoa-600">{initialState.rescheduleOrderId ? 'Your original appointment stays reserved until you confirm this replacement.' : 'Your slot is reserved while checkout completes.'}</p>{error && <p ref={checkoutAlertRef} tabIndex={-1} role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}{orderId ? <Link href={`/profile/bookings/${orderId}`} className="mt-6 inline-flex rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">View your booking</Link> : <button disabled={submitting} onClick={confirm} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{submitting ? 'Confirming…' : initialState.rescheduleOrderId ? 'Confirm new time' : 'Confirm booking'}</button>}</>}
     </section><div className="lg:sticky lg:top-6 lg:self-start"><BookingSummary offerings={offerings} /></div></div>
   </div>
 }

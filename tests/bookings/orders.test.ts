@@ -22,6 +22,7 @@ function memoryOrderStore(): BookingOrderStore {
     transaction: (work) => work(store),
     findByIdempotencyKey: async (key) => orders.get(key) ?? null,
     getActiveHold: async () => hold,
+    acquireHoldLock: async () => undefined,
     getOfferings: async () => [
       { id: 'automatic', confirmationMode: 'AUTOMATIC', allowFullPayment: true, allowDeposit: false, allowCash: true, depositKind: null, depositValue: null },
       { id: 'manual', confirmationMode: 'MANUAL', allowFullPayment: true, allowDeposit: false, allowCash: true, depositKind: null, depositValue: null },
@@ -32,7 +33,7 @@ function memoryOrderStore(): BookingOrderStore {
       orders.set(input.idempotencyKey, created)
       return created
     },
-    consumeHold: async () => undefined,
+    consumeHoldIfActive: async () => true,
   }
   return store
 }
@@ -51,6 +52,36 @@ describe('booking orders', () => {
     const first = await createBookingOrder(input, { store })
     const second = await createBookingOrder(input, { store })
     expect(second.id).toBe(first.id)
+  })
+
+  it('rejects an idempotency key reused by another customer, hold, or payment choice', async () => {
+    const store = memoryOrderStore()
+    await createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'owned', paymentChoice: 'CASH' }, { store })
+    await expect(createBookingOrder({ holdToken: 'other-hold', customerId: 'customer-2', idempotencyKey: 'owned', paymentChoice: 'FULL' }, { store }))
+      .rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' })
+  })
+
+  it('rolls back when the hold was already conditionally consumed', async () => {
+    const store = memoryOrderStore()
+    store.consumeHoldIfActive = async () => false
+    await expect(createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'consumed', paymentChoice: 'CASH' }, { store }))
+      .rejects.toMatchObject({ code: 'HOLD_EXPIRED' })
+  })
+
+  it('allows only one concurrent order to conditionally consume a hold', async () => {
+    const store = memoryOrderStore()
+    let active = true
+    store.consumeHoldIfActive = async () => {
+      if (!active) return false
+      active = false
+      return true
+    }
+    const results = await Promise.allSettled([
+      createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'concurrent-one', paymentChoice: 'CASH' }, { store }),
+      createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'concurrent-two', paymentChoice: 'CASH' }, { store }),
+    ])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.find((result) => result.status === 'rejected')).toMatchObject({ reason: { code: 'HOLD_EXPIRED' } })
   })
 
   it('revalidates scheduling before consuming the hold', async () => {

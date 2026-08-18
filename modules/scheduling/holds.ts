@@ -4,7 +4,11 @@ import type { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 
-import { schedulingLockKeys } from './locking'
+import { schedulingRequestLockKeys } from './locking'
+import { loadSchedulingFacts, toSchedulingSnapshot } from './repository'
+import { deriveValidatedSegments } from './validation'
+
+export type RequestedHoldSegment = Pick<HoldSegment, 'offeringId' | 'membershipId' | 'start' | 'attendeeCount'>
 
 export type HoldSegment = {
   offeringId: string
@@ -34,9 +38,10 @@ export interface HoldStore {
   transaction<T>(work: (store: HoldStore) => Promise<T>): Promise<T>
   findByIdempotencyKey(key: string): Promise<HoldRecord | null>
   findByToken(token: string): Promise<HoldRecord | null>
-  findConflicts(segment: HoldSegment, now: Date): Promise<HoldSegment[]>
+  findConflicts(businessId: string, segment: HoldSegment, now: Date): Promise<HoldSegment[]>
   create(hold: Omit<HoldRecord, 'consumedAt'>): Promise<HoldRecord>
-  acquireLocks?(keys: string[], input: { businessId: string; locationId: string }): Promise<void>
+  acquireRequestLocks(input: { businessId: string; locationId: string; segments: RequestedHoldSegment[] }): Promise<void>
+  deriveSegments(input: { businessId: string; locationId: string; segments: RequestedHoldSegment[] }, now: Date): Promise<HoldSegment[]>
 }
 
 export class HoldError extends Error {
@@ -51,49 +56,44 @@ export async function createBookingHold(
     customerId?: string | null
     checkoutIdentity: string
     idempotencyKey: string
-    segments: HoldSegment[]
+    locationId?: string
+    segments: RequestedHoldSegment[]
   },
   dependencies: { store: HoldStore; now?: () => Date; token?: () => string },
 ) {
   const now = dependencies.now?.() ?? new Date()
   return dependencies.store.transaction(async (store) => {
+    const locationId = input.locationId ?? (input.segments[0] as HoldSegment | undefined)?.locationId
+    if (!locationId) throw new HoldError('SLOT_UNAVAILABLE')
+    await store.acquireRequestLocks({ businessId: input.businessId, locationId, segments: input.segments })
     const existing = await store.findByIdempotencyKey(input.idempotencyKey)
     if (existing) {
       const sameOwner = existing.businessId === input.businessId
         && (existing.customerId ?? null) === (input.customerId ?? null)
         && existing.checkoutIdentity === input.checkoutIdentity
-      const sameSegments = JSON.stringify(existing.segments.map(serializeSegment)) === JSON.stringify(input.segments.map(serializeSegment))
+      const sameSegments = JSON.stringify(existing.segments.map(serializeRequestedSegment)) === JSON.stringify(input.segments.map(serializeRequestedSegment))
       if (!sameOwner || !sameSegments) throw new HoldError('IDEMPOTENCY_KEY_REUSED')
       return existing
     }
-    const keys = input.segments.flatMap((segment) => schedulingLockKeys({ businessId: input.businessId, ...segment }))
-    await store.acquireLocks?.(Array.from(new Set(keys)).sort(), {
-      businessId: input.businessId,
-      locationId: input.segments[0]!.locationId,
-    })
-    for (const segment of input.segments) {
-      const conflicts = await store.findConflicts(segment, now)
-      const reserved = conflicts.reduce((total, conflict) => total + conflict.attendeeCount, 0)
-      if (reserved + segment.attendeeCount > segment.capacity) throw new HoldError('SLOT_UNAVAILABLE')
+    const segments = await store.deriveSegments({ businessId: input.businessId, locationId, segments: input.segments }, now)
+    for (const segment of segments) {
+      const conflicts = await store.findConflicts(input.businessId, segment, now)
+      if (conflicts.length) throw new HoldError('SLOT_UNAVAILABLE')
     }
     return store.create({
       ...input,
+      segments,
       token: dependencies.token?.() ?? randomUUID(),
       expiresAt: new Date(now.getTime() + 10 * 60_000),
     })
   })
 }
 
-const serializeSegment = (segment: HoldSegment) => ({
+const serializeRequestedSegment = (segment: RequestedHoldSegment) => ({
   offeringId: segment.offeringId,
-  locationId: segment.locationId,
   membershipId: segment.membershipId,
   start: segment.start.toISOString(),
-  end: segment.end.toISOString(),
-  occupiedStart: segment.occupiedStart.toISOString(),
-  occupiedEnd: segment.occupiedEnd.toISOString(),
   attendeeCount: segment.attendeeCount,
-  priceCents: segment.priceCents,
 })
 
 export async function getActiveHold(
@@ -132,7 +132,7 @@ const fromPrisma = (hold: Awaited<ReturnType<typeof prisma.bookingHold.findFirst
 type HoldPrismaClient = typeof prisma | Prisma.TransactionClient
 
 const createPrismaHoldStore = (client: HoldPrismaClient): HoldStore => ({
-  transaction: (work) => prisma.$transaction((tx) => work(createPrismaHoldStore(tx))),
+  transaction: (work) => prisma.$transaction((tx) => work(createPrismaHoldStore(tx)), { isolationLevel: 'ReadCommitted' }),
   findByIdempotencyKey: async (key) => {
     const hold = await client.bookingHold.findUnique({ where: { idempotencyKey: key }, include: includeSegments })
     return hold ? fromPrisma(hold as never) : null
@@ -141,15 +141,15 @@ const createPrismaHoldStore = (client: HoldPrismaClient): HoldStore => ({
     const hold = await client.bookingHold.findUnique({ where: { token }, include: includeSegments })
     return hold ? fromPrisma(hold as never) : null
   },
-  findConflicts: async (segment, now) => {
+  findConflicts: async (businessId, segment, now) => {
     const overlap = {
       membershipId: segment.membershipId,
       occupiedStartsAt: { lt: segment.occupiedEnd },
       occupiedEndsAt: { gt: segment.occupiedStart },
     }
     const [holds, bookings] = await Promise.all([
-      client.bookingHoldSegment.findMany({ where: { ...overlap, hold: { expiresAt: { gt: now }, consumedAt: null } } }),
-      client.bookingSegment.findMany({ where: { ...overlap, status: { in: ['REQUESTED', 'CONFIRMED', 'IN_PROGRESS'] } } }),
+      client.bookingHoldSegment.findMany({ where: { ...overlap, hold: { businessId, expiresAt: { gt: now }, consumedAt: null } } }),
+      client.bookingSegment.findMany({ where: { ...overlap, order: { businessId }, status: { in: ['REQUESTED', 'CONFIRMED', 'IN_PROGRESS'] } } }),
     ])
     return [...holds, ...bookings].map((row) => ({ ...segment, attendeeCount: row.attendeeCount }))
   },
@@ -175,7 +175,8 @@ const createPrismaHoldStore = (client: HoldPrismaClient): HoldStore => ({
     },
     include: includeSegments,
   }) as never),
-  acquireLocks: async (keys, input) => {
+  acquireRequestLocks: async (input) => {
+    const keys = Array.from(new Set(input.segments.flatMap((segment) => schedulingRequestLockKeys({ businessId: input.businessId, locationId: input.locationId, ...segment })))).sort()
     for (const key of keys) {
       const bucketAt = new Date(key.slice(key.lastIndexOf(':') + 1))
       await client.schedulingLock.upsert({
@@ -184,6 +185,18 @@ const createPrismaHoldStore = (client: HoldPrismaClient): HoldStore => ({
         create: { lockKey: key, businessId: input.businessId, locationId: input.locationId, bucketAt },
       })
     }
+  },
+  deriveSegments: async (input, now) => {
+    const starts = input.segments.map((segment) => segment.start.getTime())
+    const facts = await loadSchedulingFacts({
+      businessId: input.businessId,
+      locationId: input.locationId,
+      offeringIds: input.segments.map((segment) => segment.offeringId),
+      membershipIds: input.segments.map((segment) => segment.membershipId),
+      rangeStart: new Date(Math.min(...starts) - 86_400_000),
+      rangeEnd: new Date(Math.max(...starts) + 86_400_000),
+    }, client, now)
+    return deriveValidatedSegments(input, toSchedulingSnapshot(facts))
   },
 })
 

@@ -1,16 +1,12 @@
-const BUCKET_MS = 15 * 60_000
-
-export function schedulingLockKeys(input: {
+export function schedulingRequestLockKeys(input: {
   businessId: string
   locationId: string
+  offeringId: string
   membershipId: string
-  occupiedStart: Date
-  occupiedEnd: Date
+  start: Date
 }) {
-  const first = Math.floor(input.occupiedStart.getTime() / BUCKET_MS) * BUCKET_MS
-  const keys: string[] = []
-  for (let bucket = first; bucket < input.occupiedEnd.getTime(); bucket += BUCKET_MS) {
-    keys.push(`${input.businessId}:${input.locationId}:${input.membershipId}:${new Date(bucket).toISOString()}`)
-  }
-  return keys
+  const day = Date.UTC(input.start.getUTCFullYear(), input.start.getUTCMonth(), input.start.getUTCDate())
+  return [-1, 0, 1].map((offset) =>
+    `${input.businessId}:professional:${input.membershipId}:${new Date(day + offset * 86_400_000).toISOString()}`,
+  )
 }
