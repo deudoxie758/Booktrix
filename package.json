@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "db:seed:e2e": "tsx scripts/seed-phase2-e2e.ts",
     "verify": "npm run test && npm run typecheck && npm run build",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
