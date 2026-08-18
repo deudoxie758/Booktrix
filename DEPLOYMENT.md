@@ -9,6 +9,8 @@
 
 WiPay credentials are deferred to the payment implementation phase.
 
+The application caps Prisma's pool at two connections per application instance and uses a 20-second pool timeout. The current Clever Cloud database user is limited to five simultaneous connections, so run no more than two application instances and control rolling-deployment overlap. Keep operational scripts sequential and give them an equivalently bounded connection URL. Before migrations or maintenance, stop or scale down application instances; spare capacity is not guaranteed while they remain active. Upgrade the database plan or introduce a compatible external pooler before scaling beyond this limit.
+
 ## Managed MySQL migrations
 
 1. Back up the database.
