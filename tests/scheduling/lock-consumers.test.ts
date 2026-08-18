@@ -11,7 +11,8 @@ describe('scheduling lock consumers', () => {
   ])('%s uses the shared ISO bucket parser', (relativePath) => {
     const source = readFileSync(resolve(process.cwd(), relativePath), 'utf8')
 
-    expect(source).toContain('schedulingLockBucketAt(')
+    expect(source).toContain('acquireSchedulingLock(')
     expect(source).not.toContain("lastIndexOf(':')")
+    expect(source).not.toContain('schedulingLock.upsert(')
   })
 })

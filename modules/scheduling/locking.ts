@@ -16,3 +16,17 @@ export function schedulingLockBucketAt(lockKey: string) {
   if (!timestamp) throw new Error('INVALID_SCHEDULING_LOCK_KEY')
   return new Date(timestamp)
 }
+
+export function acquireSchedulingLock(
+  client: Pick<Prisma.TransactionClient, '$executeRaw'>,
+  input: { lockKey: string; businessId: string; locationId: string; bucketAt: Date },
+) {
+  return client.$executeRaw`
+    INSERT INTO SchedulingLock (id, lockKey, businessId, locationId, bucketAt, updatedAt)
+    VALUES (${randomUUID()}, ${input.lockKey}, ${input.businessId}, ${input.locationId}, ${input.bucketAt}, CURRENT_TIMESTAMP(3))
+    ON DUPLICATE KEY UPDATE bucketAt = VALUES(bucketAt), updatedAt = VALUES(updatedAt)
+  `
+}
+import { randomUUID } from 'node:crypto'
+
+import type { Prisma } from '@prisma/client'

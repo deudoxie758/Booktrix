@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 
-import { schedulingLockBucketAt, schedulingRequestLockKeys } from './locking'
+import { acquireSchedulingLock, schedulingLockBucketAt, schedulingRequestLockKeys } from './locking'
 import { loadSchedulingFacts, toSchedulingSnapshot } from './repository'
 import { deriveValidatedSegments } from './validation'
 
@@ -227,11 +227,7 @@ const createPrismaHoldStore = (client: HoldPrismaClient): HoldStore => ({
     const keys = Array.from(new Set(input.segments.flatMap((segment) => schedulingRequestLockKeys({ businessId: input.businessId, locationId: input.locationId, ...segment })))).sort()
     for (const key of keys) {
       const bucketAt = schedulingLockBucketAt(key)
-      await client.schedulingLock.upsert({
-        where: { lockKey: key },
-        update: { bucketAt },
-        create: { lockKey: key, businessId: input.businessId, locationId: input.locationId, bucketAt },
-      })
+      await acquireSchedulingLock(client, { lockKey: key, businessId: input.businessId, locationId: input.locationId, bucketAt })
     }
   },
   deriveSegments: async (input, now) => {

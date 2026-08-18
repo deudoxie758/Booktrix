@@ -2,7 +2,7 @@ import type { BookingSegmentStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { requireLocationAccess } from '@/modules/organizations/access'
-import { schedulingLockBucketAt, schedulingRequestLockKeys } from '@/modules/scheduling/locking'
+import { acquireSchedulingLock, schedulingLockBucketAt, schedulingRequestLockKeys } from '@/modules/scheduling/locking'
 import { loadSchedulingFacts, toSchedulingSnapshot } from '@/modules/scheduling/repository'
 import { deriveValidatedSegments } from '@/modules/scheduling/validation'
 
@@ -39,7 +39,7 @@ async function createManagedBookingRecord(input: ManagedBookingInput, options: {
     const lockKeys = Array.from(new Set(input.segments.flatMap((segment) => schedulingRequestLockKeys({ businessId: input.businessId, locationId: input.locationId, offeringId: segment.offeringId, membershipId: segment.membershipId, start: segment.startsAt })))).sort()
     for (const lockKey of lockKeys) {
       const bucketAt = schedulingLockBucketAt(lockKey)
-      await tx.schedulingLock.upsert({ where: { lockKey }, update: { bucketAt }, create: { lockKey, businessId: input.businessId, locationId: input.locationId, bucketAt } })
+      await acquireSchedulingLock(tx, { lockKey, businessId: input.businessId, locationId: input.locationId, bucketAt })
     }
     const facts = await loadSchedulingFacts({ ...query, membershipIds: input.segments.map((segment) => segment.membershipId) }, tx)
     const derived = deriveValidatedSegments({

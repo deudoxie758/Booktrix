@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type { HoldRecord } from '@/modules/scheduling/holds'
-import { schedulingLockBucketAt, schedulingRequestLockKeys } from '@/modules/scheduling/locking'
+import { acquireSchedulingLock, schedulingLockBucketAt, schedulingRequestLockKeys } from '@/modules/scheduling/locking'
 import { loadSchedulingFacts, toSchedulingSnapshot } from '@/modules/scheduling/repository'
 import { deriveValidatedSegments } from '@/modules/scheduling/validation'
 
@@ -72,11 +72,7 @@ export function createPrismaOrderStore(client: Client = prisma): BookingOrderSto
       const lockKeys = Array.from(new Set(hold.segments.flatMap((segment) => schedulingRequestLockKeys({ businessId: hold.businessId, ...segment })))).sort()
       for (const lockKey of lockKeys) {
         const bucketAt = schedulingLockBucketAt(lockKey)
-        await client.schedulingLock.upsert({
-          where: { lockKey },
-          update: { bucketAt },
-          create: { lockKey, businessId: hold.businessId, locationId: hold.segments[0]!.locationId, bucketAt },
-        })
+        await acquireSchedulingLock(client, { lockKey, businessId: hold.businessId, locationId: hold.segments[0]!.locationId, bucketAt })
       }
       const facts = await loadSchedulingFacts({
         businessId: hold.businessId,
