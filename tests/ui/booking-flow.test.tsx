@@ -47,6 +47,23 @@ describe('BookingFlow', () => {
     vi.unstubAllGlobals()
   })
 
+  it('announces and focuses a failed hold with recovery guidance', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ slots: [{ start: '2026-08-20T14:00:00.000Z', segments: [{ offeringId: 'service-1', membershipId: 'member-1', start: '2026-08-20T14:00:00.000Z', attendeeCount: 1 }] }] }) })
+      .mockResolvedValueOnce({ ok: false, json: async () => ({ code: 'SLOT_UNAVAILABLE', message: 'That time is no longer available. Please choose another.' }) })
+    vi.stubGlobal('fetch', fetch)
+    render(<BookingFlow initialState={{ ...state, businessId: 'business-1' }} />)
+    fireEvent.click(screen.getByRole('button', { name: /continue to location/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /castries/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue to date/i }))
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-08-20' } })
+    fireEvent.click(await screen.findByRole('button', { name: /10:00 am/i }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('That time is no longer available. Please choose another.')
+    expect(alert).toHaveFocus()
+    vi.unstubAllGlobals()
+  })
+
   it('submits the held order from review', async () => {
     const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: { id: 'order-1' } }) })
     vi.stubGlobal('fetch', fetch)

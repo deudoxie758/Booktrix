@@ -40,4 +40,18 @@ describe('availability', () => {
     expect(sequence.map((segment) => segment.membershipId)).toEqual(['a-member', 'a-member'])
     expect(sequence[1].start.toISOString()).toBe('2026-08-20T14:45:00.000Z')
   })
+
+  it('requires the complete occupied sequence to fit location hours', () => {
+    const starts = findAvailableStarts({
+      window: { start: iso(13), end: iso(18) },
+      locationHours: [{ start: iso(14), end: iso(16) }],
+      incrementMinutes: 60,
+      services: [{ offeringId: 'service-1', durationMinutes: 60, preparationMinutes: 0, cleanupMinutes: 0, attendeeCount: 1, capacity: 1 }],
+      professionals: [{ membershipId: 'member-1', working: [{ start: iso(13), end: iso(18) }], qualifiedOfferingIds: ['service-1'] }],
+    })
+    expect(starts.map((slot) => slot.start.toISOString())).toEqual([
+      '2026-08-20T14:00:00.000Z',
+      '2026-08-20T15:00:00.000Z',
+    ])
+  })
 })

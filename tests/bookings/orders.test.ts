@@ -18,14 +18,15 @@ const hold = {
 
 function memoryOrderStore(): BookingOrderStore {
   const orders = new Map<string, any>()
-  return {
-    transaction: (work) => work(),
+  const store: BookingOrderStore = {
+    transaction: (work) => work(store),
     findByIdempotencyKey: async (key) => orders.get(key) ?? null,
     getActiveHold: async () => hold,
     getOfferings: async () => [
       { id: 'automatic', confirmationMode: 'AUTOMATIC', allowFullPayment: true, allowDeposit: false, allowCash: true, depositKind: null, depositValue: null },
       { id: 'manual', confirmationMode: 'MANUAL', allowFullPayment: true, allowDeposit: false, allowCash: true, depositKind: null, depositValue: null },
     ],
+    revalidateHold: async () => undefined,
     create: async (input) => {
       const created = { id: 'order-1', ...input }
       orders.set(input.idempotencyKey, created)
@@ -33,6 +34,7 @@ function memoryOrderStore(): BookingOrderStore {
     },
     consumeHold: async () => undefined,
   }
+  return store
 }
 
 describe('booking orders', () => {
@@ -49,5 +51,29 @@ describe('booking orders', () => {
     const first = await createBookingOrder(input, { store })
     const second = await createBookingOrder(input, { store })
     expect(second.id).toBe(first.id)
+  })
+
+  it('revalidates scheduling before consuming the hold', async () => {
+    const store = memoryOrderStore()
+    store.revalidateHold = async () => { throw Object.assign(new Error('SLOT_UNAVAILABLE'), { code: 'SLOT_UNAVAILABLE' }) }
+    await expect(createBookingOrder(
+      { holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'revalidate', paymentChoice: 'CASH' },
+      { store, now: () => new Date('2026-08-20T13:00:00.000Z') },
+    )).rejects.toMatchObject({ code: 'SLOT_UNAVAILABLE' })
+    expect(await store.findByIdempotencyKey('revalidate')).toBeNull()
+  })
+
+  it('creates a provider-neutral pending request for online payment', async () => {
+    const store = memoryOrderStore()
+    const order = await createBookingOrder(
+      { holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'online', paymentChoice: 'FULL' },
+      { store, now: () => new Date('2026-08-20T13:00:00.000Z') },
+    )
+    expect(order).toMatchObject({
+      status: 'PAYMENT_PENDING',
+      paymentRequest: {
+        status: 'PENDING', amountCents: 12000, currency: 'XCD', reference: 'booking:online', provider: null,
+      },
+    })
   })
 })

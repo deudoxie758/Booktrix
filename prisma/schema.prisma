@@ -72,6 +72,13 @@ enum PaymentChoice {
     CASH
 }
 
+enum PaymentRequestStatus {
+    PENDING
+    PAID
+    FAILED
+    REFUNDED
+}
+
 enum DepositKind {
     FIXED
     PERCENTAGE
@@ -423,11 +430,29 @@ model BookingOrder {
     business            Business @relation(fields: [businessId], references: [id])
     customer            User? @relation(fields: [customerId], references: [id])
     Segments            BookingSegment[]
+    PaymentRequest      BookingPaymentRequest?
     createdAt           DateTime @default(now())
     updatedAt           DateTime @updatedAt
 
     @@index([businessId, status, createdAt])
     @@index([customerId, createdAt])
+}
+
+model BookingPaymentRequest {
+    id                String @id @default(cuid())
+    orderId           String @unique
+    amountCents       Int
+    currency          String @default("XCD")
+    reference         String @unique
+    provider          String?
+    providerPaymentId String?
+    status            PaymentRequestStatus @default(PENDING)
+    order             BookingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+    createdAt         DateTime @default(now())
+    updatedAt         DateTime @updatedAt
+
+    @@index([status, createdAt])
+    @@index([provider, providerPaymentId])
 }
 
 model BookingSegment {

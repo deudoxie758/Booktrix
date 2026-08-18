@@ -43,6 +43,7 @@ const isSequenceAvailable = (
   segments: ProposedSegment[],
   professionals: AvailabilityProfessional[],
   window: TimeInterval,
+  locationHours: TimeInterval[],
 ) => segments.every((segment) => {
   const professional = professionals.find((candidate) => candidate.membershipId === segment.membershipId)
   if (!professional) return false
@@ -50,6 +51,7 @@ const isSequenceAvailable = (
   const working = professional.working ?? [window]
   const blocked = [...(professional.timeOff ?? []), ...(professional.occupied ?? [])]
   return intervalContains(window, occupied)
+    && locationHours.some((interval) => intervalContains(interval, occupied))
     && working.some((interval) => intervalContains(interval, occupied))
     && !blocked.some((interval) => intervalsOverlap(interval, occupied))
 })
@@ -59,6 +61,7 @@ export function findAvailableStarts(input: {
   incrementMinutes?: number
   services: RequestedService[]
   professionals: AvailabilityProfessional[]
+  locationHours?: TimeInterval[]
 }): AvailableStart[] {
   const increment = input.incrementMinutes ?? 15
   if (increment < 1) throw new Error('INVALID_INCREMENT')
@@ -70,7 +73,7 @@ export function findAvailableStarts(input: {
         services: input.services,
         professionals: input.professionals,
       })
-      if (isSequenceAvailable(segments, input.professionals, input.window)) {
+      if (isSequenceAvailable(segments, input.professionals, input.window, input.locationHours ?? [input.window])) {
         starts.push({ start: segments[0]?.start ?? new Date(cursor), segments })
       }
     } catch (error) {

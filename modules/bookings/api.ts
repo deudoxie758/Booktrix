@@ -10,6 +10,7 @@ export const parseCreateBookingRequest = (input: unknown) => schema.parse(input)
 
 export function toBookingErrorResponse(error: { code?: string }) {
   if (error.code === 'HOLD_EXPIRED') return { status: 409, body: { code: 'HOLD_EXPIRED', message: 'Your reserved time expired. Please choose a time again.' } }
+  if (error.code === 'SLOT_UNAVAILABLE') return { status: 409, body: { code: 'SLOT_UNAVAILABLE', message: 'That time is no longer available. Please choose another.' } }
   if (error.code === 'AUTHENTICATION_REQUIRED') return { status: 401, body: { code: 'AUTHENTICATION_REQUIRED', message: 'Sign in to complete your booking.' } }
   return { status: 422, body: { code: 'INVALID_BOOKING', message: 'Check your booking details and try again.' } }
 }
