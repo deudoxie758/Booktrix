@@ -14,6 +14,7 @@ export async function GET(req: Request) {
 	const memberships = await prisma.businessMembership.findMany({
 		where: { userId: session.user.id, active: true },
 		select: { role: true },
+		orderBy: { createdAt: 'asc' },
 	})
 	const fallback = resolvePostAuthDestination({
 		platformRole: session.user.role,
@@ -24,6 +25,6 @@ export async function GET(req: Request) {
 		callbackUrl,
 		baseUrl: req.url,
 		fallback,
-		identity: { platformRole: session.user.role, memberships },
+		identity: { platformRole: session.user.role, memberships, selectedMembership: memberships[0] },
 	}))
 }

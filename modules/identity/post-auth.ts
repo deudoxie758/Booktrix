@@ -4,17 +4,18 @@ export type WorkspaceRole = 'OWNER' | 'MANAGER' | 'ACCOUNTS' | 'STAFF'
 type PostAuthIdentity = {
 	platformRole: PlatformRole
 	memberships: Array<{ role: WorkspaceRole }>
+	selectedMembership?: { role: WorkspaceRole }
 }
 
 const obsoletePaths = ['/api', '/auth', '/dashboard', '/manager', '/spas', '/signup']
 
-export function resolvePostAuthDestination({ platformRole, memberships }: PostAuthIdentity) {
+export function resolvePostAuthDestination({ platformRole, memberships, selectedMembership }: PostAuthIdentity) {
 	if (platformRole === 'ADMIN') return '/admin'
 
-	const roles = new Set(memberships.map(({ role }) => role))
-	if (roles.has('OWNER') || roles.has('MANAGER')) return '/business/calendar'
-	if (roles.has('ACCOUNTS')) return '/business/finance'
-	if (roles.has('STAFF')) return '/business/schedule'
+	const role = selectedWorkspaceRole({ memberships, selectedMembership })
+	if (role === 'OWNER' || role === 'MANAGER') return '/business/calendar'
+	if (role === 'ACCOUNTS') return '/business/finance'
+	if (role === 'STAFF') return '/business'
 
 	return '/profile/bookings'
 }
@@ -44,16 +45,20 @@ function isRevisedPath(pathname: string) {
 	return pathname === '/' || ['/search', '/s', '/book', '/profile/bookings', '/for-business', '/business', '/admin'].some((path) => pathMatches(pathname, path))
 }
 
-function canUsePostAuthPath(pathname: string, { platformRole, memberships }: PostAuthIdentity) {
+function canUsePostAuthPath(pathname: string, { platformRole, memberships, selectedMembership }: PostAuthIdentity) {
 	if (pathname === '/' || ['/search', '/s', '/book', '/profile/bookings', '/for-business'].some((path) => pathMatches(pathname, path))) return true
 	if (pathMatches(pathname, '/admin')) return platformRole === 'ADMIN'
 
-	const roles = new Set(memberships.map(({ role }) => role))
-	if (roles.has('OWNER')) return pathMatches(pathname, '/business')
-	if (roles.has('MANAGER')) return ['/business', '/business/calendar', '/business/customers', '/business/services', '/business/locations'].some((path) => pathMatches(pathname, path))
-	if (roles.has('ACCOUNTS')) return ['/business', '/business/finance', '/business/locations'].some((path) => pathMatches(pathname, path))
-	if (roles.has('STAFF')) return ['/business', '/business/schedule', '/business/customers'].some((path) => pathMatches(pathname, path))
+	const role = selectedWorkspaceRole({ memberships, selectedMembership })
+	if (role === 'OWNER') return pathMatches(pathname, '/business')
+	if (role === 'MANAGER') return pathname === '/business' || ['/business/calendar', '/business/customers', '/business/services', '/business/locations'].some((path) => pathMatches(pathname, path))
+	if (role === 'ACCOUNTS') return pathname === '/business' || ['/business/finance', '/business/locations'].some((path) => pathMatches(pathname, path))
+	if (role === 'STAFF') return pathname === '/business' || pathMatches(pathname, '/business/customers')
 	return false
+}
+
+function selectedWorkspaceRole({ memberships, selectedMembership }: Pick<PostAuthIdentity, 'memberships' | 'selectedMembership'>) {
+	return selectedMembership?.role ?? memberships[0]?.role
 }
 
 function pathMatches(pathname: string, path: string) {
