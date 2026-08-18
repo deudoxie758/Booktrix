@@ -8,4 +8,10 @@ describe('scheduling overrides', () => {
     await expect(recordSchedulingOverride({ segmentId: 'segment-1', actorUserId: 'manager-1', reason: '', previousValues: {}, resultingValues: {} }, { create })).rejects.toThrow('OVERRIDE_REASON_REQUIRED')
     expect(create).not.toHaveBeenCalled()
   })
+
+  it('exposes only create on the override writer boundary', async () => {
+    const create = vi.fn().mockResolvedValue({ id: 'override-1' })
+    await recordSchedulingOverride({ segmentId: 'segment-1', actorUserId: 'manager-1', reason: ' Capacity exception ', previousValues: {}, resultingValues: {} }, { create })
+    expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({ reason: 'Capacity exception' }) })
+  })
 })

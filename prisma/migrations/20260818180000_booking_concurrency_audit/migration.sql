@@ -12,11 +12,6 @@ ALTER TABLE `BookingOrder` ADD CONSTRAINT `BookingOrder_sourceHoldToken_fkey`
 -- foreign key so fixture cleanup cannot cascade or be blocked by it.
 ALTER TABLE `BookingOverride` DROP FOREIGN KEY `BookingOverride_segmentId_fkey`;
 
--- Booking overrides are append-only evidence.
-CREATE TRIGGER `BookingOverride_prevent_update`
-BEFORE UPDATE ON `BookingOverride`
-FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'BookingOverride records are immutable';
-
-CREATE TRIGGER `BookingOverride_prevent_delete`
-BEFORE DELETE ON `BookingOverride`
-FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'BookingOverride records are immutable';
+-- Managed MySQL commonly prohibits database triggers when binary logging is
+-- enabled. Override writes are therefore restricted to the application's
+-- create-only repository boundary; no update/delete operation is exposed.

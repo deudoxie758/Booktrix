@@ -7,6 +7,7 @@ import { loadSchedulingFacts, toSchedulingSnapshot } from '@/modules/scheduling/
 import { deriveValidatedSegments } from '@/modules/scheduling/validation'
 
 import { assertSegmentTransition } from './transitions'
+import { persistSchedulingOverride, recordSchedulingOverride } from './overrides'
 
 type ManagedCustomer =
   | { kind: 'REGISTERED'; customerId: string }
@@ -70,8 +71,10 @@ async function createManagedBookingRecord(input: ManagedBookingInput, options: {
     if (options.override) {
       for (const segment of order.Segments) {
         const resultingValues = { startsAt: segment.startsAt, endsAt: segment.endsAt, occupiedStartsAt: segment.occupiedStartsAt, occupiedEndsAt: segment.occupiedEndsAt, attendeeCount: segment.attendeeCount }
-        await tx.bookingOverride.create({ data: { segmentId: segment.id, actorUserId: input.actorId, reason: options.overrideReason!, previousValues: {}, resultingValues } })
-        await tx.auditLog.create({ data: { actorId: input.actorId, action: 'BOOKING_SCHEDULE_OVERRIDE', details: { businessId: input.businessId, locationId: input.locationId, orderId: order.id, segmentId: segment.id, reason: options.overrideReason, previousValues: {}, resultingValues } } })
+        await recordSchedulingOverride(
+          { segmentId: segment.id, actorUserId: input.actorId, reason: options.overrideReason!, previousValues: {}, resultingValues },
+          { create: ({ data }) => persistSchedulingOverride(tx, data, { businessId: input.businessId, locationId: input.locationId, orderId: order.id }) },
+        )
       }
     }
     return order

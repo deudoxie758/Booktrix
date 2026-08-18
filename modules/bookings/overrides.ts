@@ -14,12 +14,26 @@ type OverrideWriter = {
   create(args: { data: SchedulingOverrideInput }): Promise<unknown>
 }
 
+type OverrideClient = Pick<Prisma.TransactionClient, 'bookingOverride' | 'auditLog'>
+
+export async function persistSchedulingOverride(
+  client: OverrideClient,
+  data: SchedulingOverrideInput,
+  auditContext: Record<string, string> = {},
+) {
+  const override = await client.bookingOverride.create({ data })
+  await client.auditLog.create({
+    data: {
+      actorId: data.actorUserId,
+      action: 'BOOKING_SCHEDULE_OVERRIDE',
+      details: { ...auditContext, segmentId: data.segmentId, reason: data.reason, previousValues: data.previousValues, resultingValues: data.resultingValues },
+    },
+  })
+  return override
+}
+
 const defaultWriter: OverrideWriter = {
-  create: ({ data }) => prisma.$transaction(async (tx) => {
-    const override = await tx.bookingOverride.create({ data })
-    await tx.auditLog.create({ data: { actorId: data.actorUserId, action: 'BOOKING_SCHEDULE_OVERRIDE', details: { segmentId: data.segmentId, reason: data.reason, previousValues: data.previousValues, resultingValues: data.resultingValues } } })
-    return override
-  }),
+  create: ({ data }) => prisma.$transaction((tx) => persistSchedulingOverride(tx, data)),
 }
 
 export async function recordSchedulingOverride(
