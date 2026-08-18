@@ -1,15 +1,57 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
 
-export async function GET(req: NextRequest) {
-	const { searchParams } = new URL(req.url)
-	const spaId = searchParams.get('spaId')
-	const subserviceId = searchParams.get('subserviceId')
-	const from = searchParams.get('from')
-	const to = searchParams.get('to')
-	if (!spaId || !subserviceId || !from || !to)
-		return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+import { findAvailableStarts } from '@/modules/scheduling/availability'
+import { loadSchedulingFacts } from '@/modules/scheduling/repository'
 
-	// TODO: real availability logic
-	return NextResponse.json({ slots: [] })
+const querySchema = z.object({
+  businessId: z.string().min(1),
+  locationId: z.string().min(1),
+  offeringIds: z.string().transform((value) => value.split(',').filter(Boolean)).pipe(z.array(z.string()).min(1)),
+  attendeeCounts: z.string().transform((value) => value.split(',').map(Number)).pipe(z.array(z.number().int().min(1)).min(1)),
+  from: z.coerce.date(),
+  to: z.coerce.date(),
+})
+
+const datedInterval = (date: Date, startMinute: number, endMinute: number) => {
+  const start = new Date(date)
+  start.setUTCHours(4, startMinute, 0, 0)
+  const end = new Date(date)
+  end.setUTCHours(4, endMinute, 0, 0)
+  return { start, end }
+}
+
+export async function GET(request: Request) {
+  const parsed = querySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams))
+  if (!parsed.success || parsed.data.offeringIds.length !== parsed.data.attendeeCounts.length) {
+    return NextResponse.json({ code: 'INVALID_SELECTION', message: 'Check the selected services and date.' }, { status: 422 })
+  }
+  const input = parsed.data
+  try {
+    const facts = await loadSchedulingFacts({ businessId: input.businessId, locationId: input.locationId, offeringIds: input.offeringIds, rangeStart: input.from, rangeEnd: input.to })
+    if (facts.offerings.length !== input.offeringIds.length) {
+      return NextResponse.json({ code: 'INVALID_SELECTION', message: 'One or more services are unavailable.' }, { status: 422 })
+    }
+    const professionals = Array.from(new Set(facts.qualifications.map((item) => item.membershipId))).sort().map((membershipId) => ({
+      membershipId,
+      qualifiedOfferingIds: facts.qualifications.filter((item) => item.membershipId === membershipId).map((item) => item.offeringId),
+      working: facts.schedules.filter((item) => item.membershipId === membershipId).map((item) => datedInterval(input.from, item.startMinute, item.endMinute)),
+      timeOff: facts.timeOff.filter((item) => item.membershipId === membershipId).map((item) => ({ start: item.startsAt, end: item.endsAt })),
+      occupied: [
+        ...facts.segments.filter((item) => item.membershipId === membershipId).map((item) => ({ start: item.occupiedStartsAt, end: item.occupiedEndsAt })),
+        ...facts.holds.filter((item) => item.membershipId === membershipId).map((item) => ({ start: item.occupiedStartsAt, end: item.occupiedEndsAt })),
+      ],
+    }))
+    const starts = findAvailableStarts({
+      window: { start: input.from, end: input.to },
+      services: input.offeringIds.map((offeringId, index) => {
+        const offering = facts.offerings.find((item) => item.id === offeringId)!
+        return { offeringId, durationMinutes: offering.durationMinutes, preparationMinutes: offering.preparationMinutes, cleanupMinutes: offering.cleanupMinutes, attendeeCount: input.attendeeCounts[index]!, capacity: offering.capacity }
+      }),
+      professionals,
+    })
+    return NextResponse.json({ slots: starts })
+  } catch {
+    return NextResponse.json({ code: 'INVALID_SELECTION', message: 'Availability could not be calculated.' }, { status: 422 })
+  }
 }
