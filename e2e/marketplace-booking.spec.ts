@@ -25,8 +25,9 @@ test('customer discovers and builds a multi-service booking', async ({ page }) =
   await expect(page.getByText('E2E Classic Facial')).toBeVisible()
 })
 
-test('customer signs in from a held single-service CASH checkout and opens the booking detail', async ({ page }) => {
-  const appointmentDate = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10)
+test('customer signs in from a held single-service CASH checkout and opens the booking detail', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'This journey creates and then cancels a real booking once per test run.')
+  const appointmentDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   await page.goto('/s/booktrix-e2e-studio')
   await page.getByRole('checkbox', { name: 'E2E Deep Tissue Massage' }).check()
@@ -39,6 +40,8 @@ test('customer signs in from a held single-service CASH checkout and opens the b
   await expect(page.getByRole('status')).toHaveText(/time reserved for 10 minutes/i)
   await page.getByRole('button', { name: /continue to details/i }).click()
 
+  await page.getByRole('link', { name: /sign in to continue/i }).click()
+  await expect(page).toHaveURL(/\/auth\/sign-in/)
   const callback = new URL(page.url()).searchParams.get('callbackUrl')
   expect(callback).toMatch(/^\/book\/booktrix-e2e-studio\?hold=/)
   await page.getByLabel('Email Address').fill('customer.e2e@booktrix.test')
@@ -55,6 +58,8 @@ test('customer signs in from a held single-service CASH checkout and opens the b
   await expect(page).toHaveURL(/\/profile\/bookings\//)
   await expect(page.getByRole('heading', { name: /your appointment/i })).toBeVisible()
   await expect(page.getByText('E2E Deep Tissue Massage')).toBeVisible()
+  await page.getByRole('button', { name: /cancel booking/i }).click()
+  await expect(page.getByRole('status')).toHaveText(/your booking was cancelled/i)
 })
 
 test('seeded customer can open Booktrix booking history', async ({ page }) => {
