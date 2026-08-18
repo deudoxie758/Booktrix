@@ -142,6 +142,7 @@ model Business {
     slug            String               @unique
     status          BusinessStatus       @default(APPLICATION)
     defaultCurrency String               @default("XCD")
+    coverImageUrl   String?
     legacySpaId     String?              @unique
     Memberships     BusinessMembership[]
     Locations       Location[]

@@ -29,7 +29,7 @@ export function listPublishedOfferings(filters: PublishedOfferingFilters = {}) {
       },
     },
     include: {
-      business: { select: { id: true, name: true, slug: true, status: true } },
+      business: { select: { id: true, name: true, slug: true, status: true, coverImageUrl: true } },
       Locations: {
         where: { active: true, location: { isActive: true } },
         include: { location: true },

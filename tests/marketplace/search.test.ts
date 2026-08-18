@@ -7,11 +7,11 @@ describe('marketplace search', () => {
     const results = await searchMarketplace(
       { query: '  Massage ', district: ' Castries ', take: 12 },
       { list: async () => [
-        { id: 'one', businessStatus: 'PUBLISHED' as const, businessName: 'Calm', businessSlug: 'calm', offeringName: 'Massage', category: 'Wellness', priceCents: 12000, durationMinutes: 60, locations: [{ name: 'City', address: 'Castries' }] },
+        { id: 'one', businessStatus: 'PUBLISHED' as const, businessName: 'Calm', businessSlug: 'calm', coverImageUrl: '/images/calm.png', offeringName: 'Massage', category: 'Wellness', priceCents: 12000, durationMinutes: 60, locations: [{ name: 'City', address: 'Castries' }] },
         { id: 'two', businessStatus: 'SUSPENDED' as const, businessName: 'Closed', businessSlug: 'closed', offeringName: 'Massage', category: 'Wellness', priceCents: 9000, durationMinutes: 45, locations: [{ name: 'Town', address: 'Castries' }] },
       ] },
     )
     expect(results).toHaveLength(1)
-    expect(results[0]).toMatchObject({ businessSlug: 'calm', startingPriceCents: 12000 })
+    expect(results[0]).toMatchObject({ businessSlug: 'calm', coverImageUrl: '/images/calm.png', startingPriceCents: 12000 })
   })
 })

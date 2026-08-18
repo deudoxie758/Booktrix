@@ -5,6 +5,7 @@ export type MarketplaceOfferingRow = {
   businessStatus: 'PUBLISHED' | 'SUSPENDED' | string
   businessName: string
   businessSlug: string
+  coverImageUrl?: string | null
   offeringName: string
   category: string
   priceCents: number
@@ -16,6 +17,7 @@ export type MarketplaceResult = {
   businessName: string
   businessSlug: string
   businessStatus: string
+  coverImageUrl: string | null
   startingPriceCents: number
   offerings: Array<Pick<MarketplaceOfferingRow, 'id' | 'offeringName' | 'category' | 'priceCents' | 'durationMinutes'>>
   locations: MarketplaceOfferingRow['locations']
@@ -32,6 +34,7 @@ const databaseRepository: SearchRepository = {
       businessStatus: row.business.status,
       businessName: row.business.name,
       businessSlug: row.business.slug,
+      coverImageUrl: row.business.coverImageUrl,
       offeringName: row.name,
       category: row.category,
       priceCents: row.priceCents,
@@ -59,6 +62,7 @@ export async function searchMarketplace(input: SearchInput, repository: SearchRe
       businessName: row.businessName,
       businessSlug: row.businessSlug,
       businessStatus: row.businessStatus,
+      coverImageUrl: row.coverImageUrl ?? null,
       startingPriceCents: row.priceCents,
       offerings: [],
       locations: row.locations,

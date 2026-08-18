@@ -8,7 +8,7 @@ type Hours = Array<[number, number, number]>
 type LocationFixture = { id: string; slug: string; name: string; address: string; phone: string; email: string; hours: Hours }
 type MemberFixture = { id: string; email: string; name: string; role: BusinessRole; locations: string[] }
 type OfferingFixture = { id: string; category: string; name: string; description: string; minutes: number; price: number; locations: string[]; staff: string[]; mode?: ConfirmationMode; deposit?: [DepositKind, number]; cash?: boolean; full?: boolean }
-type BusinessFixture = { id: string; name: string; slug: string; locations: LocationFixture[]; members: MemberFixture[]; offerings: OfferingFixture[] }
+type BusinessFixture = { id: string; name: string; slug: string; coverImageUrl: string; locations: LocationFixture[]; members: MemberFixture[]; offerings: OfferingFixture[] }
 
 const standardHours: Hours = [[1, 540, 1020], [2, 540, 1020], [3, 540, 1020], [4, 540, 1020], [5, 540, 1080], [6, 600, 960]]
 const clubHours: Hours = [[1, 480, 1140], [2, 480, 1140], [3, 480, 1140], [4, 480, 1140], [5, 480, 1140], [6, 540, 1020], [0, 540, 900]]
@@ -16,41 +16,39 @@ const location = (id: string, slug: string, name: string, address: string, hours
 const member = (id: string, name: string, role: BusinessRole, locations: string[]): MemberFixture => ({ id, name, role, locations, email: `${id.replace('booktrix-e2e-member-', '')}@booktrix.test` })
 const offering = (id: string, category: string, name: string, minutes: number, price: number, locations: string[], staff: string[], description: string, mode: ConfirmationMode = 'AUTOMATIC', deposit?: [DepositKind, number], cash = true, full = true): OfferingFixture => ({ id, category, name, minutes, price, locations, staff, description, mode, deposit, cash, full })
 
-// Image fields are not present on Business or ServiceOffering yet. Planned local assets under
-// /images/demo-storefronts are deliberately not persisted until the schema supports them.
 export const demoBusinesses: BusinessFixture[] = [
   {
-    id: 'booktrix-e2e-business-sole-wellness-house', name: 'Solé Wellness House', slug: 'sole-wellness-house',
+    id: 'booktrix-e2e-business-sole-wellness-house', name: 'Solé Wellness House', slug: 'sole-wellness-house', coverImageUrl: '/images/demo-storefronts/sole-wellness-house.png',
     locations: [location('booktrix-e2e-location-sole-castries', 'castries', 'Solé Wellness House — Castries', '12 Choc Bay, Castries, Saint Lucia'), location('booktrix-e2e-location-sole-rodney-bay', 'rodney-bay', 'Solé Wellness House — Rodney Bay', 'Baywalk Mall, Rodney Bay, Saint Lucia')],
     members: [member('booktrix-e2e-member-sole-owner', 'Alana Joseph', 'OWNER', ['castries', 'rodney-bay']), member('booktrix-e2e-member-sole-manager', 'Kira Charles', 'MANAGER', ['castries', 'rodney-bay']), member('booktrix-e2e-member-sole-nadia', 'Nadia Pierre', 'STAFF', ['castries', 'rodney-bay']), member('booktrix-e2e-member-sole-levi', 'Levi Henry', 'STAFF', ['rodney-bay'])],
     offerings: [offering('booktrix-e2e-offering-sole-deep-tissue', 'Massage', 'Caribbean Deep Tissue Massage', 75, 18500, ['castries', 'rodney-bay'], ['booktrix-e2e-member-sole-nadia', 'booktrix-e2e-member-sole-levi'], 'Targeted therapeutic massage with locally blended coconut and bay leaf oil.'), offering('booktrix-e2e-offering-sole-cocoa-facial', 'Skin care', 'Cocoa Renewal Facial', 60, 14500, ['castries', 'rodney-bay'], ['booktrix-e2e-member-sole-nadia'], 'Hydrating facial featuring Saint Lucian cocoa and botanical extracts.', 'MANUAL', ['PERCENTAGE', 30]), offering('booktrix-e2e-offering-sole-couples', 'Wellness', 'Sunset Couples Ritual', 90, 42000, ['rodney-bay'], ['booktrix-e2e-member-sole-nadia', 'booktrix-e2e-member-sole-levi'], 'Side-by-side massage ritual for two in the Rodney Bay suite.', 'MANUAL', ['FIXED', 10000], false)],
   },
   {
-    id: 'booktrix-e2e-business-muse-nail-atelier', name: 'Muse Nail Atelier', slug: 'muse-nail-atelier',
+    id: 'booktrix-e2e-business-muse-nail-atelier', name: 'Muse Nail Atelier', slug: 'muse-nail-atelier', coverImageUrl: '/images/demo-storefronts/muse-nail-atelier.png',
     locations: [location('booktrix-e2e-location-muse-gros-islet', 'gros-islet', 'Muse Nail Atelier — Gros Islet', '18 Dauphin Street, Gros Islet, Saint Lucia')],
     members: [member('booktrix-e2e-member-muse-owner', 'Maya Ferdinand', 'OWNER', ['gros-islet']), member('booktrix-e2e-member-muse-shanice', 'Shanice Louis', 'STAFF', ['gros-islet']), member('booktrix-e2e-member-muse-cherise', 'Cherise James', 'STAFF', ['gros-islet'])],
     offerings: [offering('booktrix-e2e-offering-muse-structured-manicure', 'Nails & beauty', 'Structured Gel Manicure', 75, 11000, ['gros-islet'], ['booktrix-e2e-member-muse-shanice', 'booktrix-e2e-member-muse-cherise'], 'Detailed dry manicure with builder gel and a long-wearing gel finish.'), offering('booktrix-e2e-offering-muse-lash-set', 'Lashes', 'Soft Volume Lash Set', 120, 18000, ['gros-islet'], ['booktrix-e2e-member-muse-cherise'], 'Customized lightweight volume set for a soft island-glam finish.', 'MANUAL', ['FIXED', 6000]), offering('booktrix-e2e-offering-muse-nail-art', 'Nails & beauty', 'Signature Nail Art Add-On', 30, 4500, ['gros-islet'], ['booktrix-e2e-member-muse-shanice'], 'Hand-painted details, chrome, or seasonal accents for an existing service.')],
   },
   {
-    id: 'booktrix-e2e-business-crown-and-coil-studio', name: 'Crown & Coil Studio', slug: 'crown-and-coil-studio',
+    id: 'booktrix-e2e-business-crown-and-coil-studio', name: 'Crown & Coil Studio', slug: 'crown-and-coil-studio', coverImageUrl: '/images/demo-storefronts/crown-and-coil-studio.png',
     locations: [location('booktrix-e2e-location-crown-castries', 'castries', 'Crown & Coil Studio — Castries', '44 Brazil Street, Castries, Saint Lucia'), location('booktrix-e2e-location-crown-vieux-fort', 'vieux-fort', 'Crown & Coil Studio — Vieux Fort', '21 Commercial Street, Vieux Fort, Saint Lucia')],
     members: [member('booktrix-e2e-member-crown-owner', 'Jalen St. Prix', 'OWNER', ['castries', 'vieux-fort']), member('booktrix-e2e-member-crown-asha', 'Asha Felix', 'STAFF', ['castries', 'vieux-fort']), member('booktrix-e2e-member-crown-kyle', 'Kyle Augustin', 'STAFF', ['castries']), member('booktrix-e2e-member-crown-marcus', 'Marcus Belrose', 'STAFF', ['vieux-fort'])],
     offerings: [offering('booktrix-e2e-offering-crown-silk-press', 'Hair & grooming', 'Silk Press & Trim', 120, 16500, ['castries', 'vieux-fort'], ['booktrix-e2e-member-crown-asha'], 'Heat-protected cleansing, silk press, and healthy-end trim.', 'MANUAL', ['FIXED', 5000]), offering('booktrix-e2e-offering-crown-loc-retwist', 'Hair & grooming', 'Loc Retwist & Style', 105, 14500, ['castries', 'vieux-fort'], ['booktrix-e2e-member-crown-asha', 'booktrix-e2e-member-crown-marcus'], 'Cleanse, retwist, and protective everyday styling.', 'AUTOMATIC', ['PERCENTAGE', 25]), offering('booktrix-e2e-offering-crown-fade', 'Hair & grooming', 'Precision Fade & Beard Line-Up', 60, 9000, ['castries'], ['booktrix-e2e-member-crown-kyle'], 'Modern fade, detailed beard shaping, and hot-towel finish.')],
   },
   {
-    id: 'booktrix-e2e-business-harbour-bodyworks', name: 'Harbour Bodyworks', slug: 'harbour-bodyworks',
+    id: 'booktrix-e2e-business-harbour-bodyworks', name: 'Harbour Bodyworks', slug: 'harbour-bodyworks', coverImageUrl: '/images/demo-storefronts/harbour-bodyworks.png',
     locations: [location('booktrix-e2e-location-harbour-marigot-bay', 'marigot-bay', 'Harbour Bodyworks — Marigot Bay', 'Marigot Bay Marina, Castries, Saint Lucia'), location('booktrix-e2e-location-harbour-soufriere', 'soufriere', 'Harbour Bodyworks — Soufrière', '9 Bridge Street, Soufrière, Saint Lucia')],
     members: [member('booktrix-e2e-member-harbour-owner', 'Dr. Simone Samuel', 'OWNER', ['marigot-bay', 'soufriere']), member('booktrix-e2e-member-harbour-elijah', 'Elijah Francis', 'STAFF', ['marigot-bay', 'soufriere']), member('booktrix-e2e-member-harbour-renee', 'Renée Modeste', 'STAFF', ['soufriere'])],
     offerings: [offering('booktrix-e2e-offering-harbour-assessment', 'Physiotherapy', 'Physiotherapy Initial Assessment', 60, 22000, ['marigot-bay', 'soufriere'], ['booktrix-e2e-member-harbour-elijah'], 'Movement, pain, and recovery assessment with a practical treatment plan.', 'MANUAL', ['FIXED', 7500], false), offering('booktrix-e2e-offering-harbour-sports-recovery', 'Bodywork', 'Sports Recovery Bodywork', 75, 17500, ['marigot-bay', 'soufriere'], ['booktrix-e2e-member-harbour-elijah', 'booktrix-e2e-member-harbour-renee'], 'Assisted stretching and soft tissue bodywork for recovery.'), offering('booktrix-e2e-offering-harbour-postnatal', 'Physiotherapy', 'Postnatal Core Restore', 60, 19000, ['soufriere'], ['booktrix-e2e-member-harbour-renee'], 'Private pelvic and core recovery session.', 'MANUAL', ['PERCENTAGE', 25])],
   },
   {
-    id: 'booktrix-e2e-business-piton-movement-club', name: 'Piton Movement Club', slug: 'piton-movement-club',
+    id: 'booktrix-e2e-business-piton-movement-club', name: 'Piton Movement Club', slug: 'piton-movement-club', coverImageUrl: '/images/demo-storefronts/piton-movement-club.png',
     locations: [location('booktrix-e2e-location-piton-rodney-bay', 'rodney-bay', 'Piton Movement Club — Rodney Bay', 'Reduit Beach Avenue, Rodney Bay, Saint Lucia', clubHours), location('booktrix-e2e-location-piton-micoud', 'micoud', 'Piton Movement Club — Micoud', 'Morne Micoud, Micoud, Saint Lucia', clubHours)],
     members: [member('booktrix-e2e-member-piton-owner', 'Tariq Bousquet', 'OWNER', ['rodney-bay', 'micoud']), member('booktrix-e2e-member-piton-kiara', 'Kiara George', 'STAFF', ['rodney-bay', 'micoud']), member('booktrix-e2e-member-piton-david', 'David Joseph', 'STAFF', ['rodney-bay'])],
     offerings: [offering('booktrix-e2e-offering-piton-reformer', 'Fitness & wellness', 'Private Reformer Pilates', 55, 16000, ['rodney-bay', 'micoud'], ['booktrix-e2e-member-piton-kiara'], 'One-to-one reformer session with mobility and strength programming.'), offering('booktrix-e2e-offering-piton-strength', 'Fitness & wellness', 'Personal Strength Session', 60, 14000, ['rodney-bay', 'micoud'], ['booktrix-e2e-member-piton-kiara', 'booktrix-e2e-member-piton-david'], 'Progressive strength coaching with a movement-screen-informed plan.', 'AUTOMATIC', ['PERCENTAGE', 20]), offering('booktrix-e2e-offering-piton-breathwork', 'Wellness', 'Guided Breathwork Reset', 45, 8500, ['rodney-bay'], ['booktrix-e2e-member-piton-kiara'], 'Private guided breathwork to downshift stress and restore focus.', 'MANUAL')],
   },
   {
-    id: 'booktrix-e2e-business-island-glow-beauty-bar', name: 'Island Glow Beauty Bar', slug: 'island-glow-beauty-bar',
+    id: 'booktrix-e2e-business-island-glow-beauty-bar', name: 'Island Glow Beauty Bar', slug: 'island-glow-beauty-bar', coverImageUrl: '/images/demo-storefronts/island-glow-beauty-bar.png',
     locations: [location('booktrix-e2e-location-glow-laborie', 'laborie', 'Island Glow Beauty Bar — Laborie', '3 Lighthouse Road, Laborie, Saint Lucia')],
     members: [member('booktrix-e2e-member-glow-owner', 'Imani Laurent', 'OWNER', ['laborie']), member('booktrix-e2e-member-glow-zaria', 'Zaria Noel', 'STAFF', ['laborie']), member('booktrix-e2e-member-glow-amber', 'Amber Cox', 'STAFF', ['laborie'])],
     offerings: [offering('booktrix-e2e-offering-glow-brow', 'Beauty', 'Brow Shape & Hybrid Tint', 45, 7500, ['laborie'], ['booktrix-e2e-member-glow-zaria'], 'Brow mapping, shaping, and a soft hybrid tint.', 'AUTOMATIC', undefined, true, false), offering('booktrix-e2e-offering-glow-makeup', 'Beauty', 'Occasion Makeup Application', 75, 15500, ['laborie'], ['booktrix-e2e-member-glow-amber'], 'Long-wear complexion and eye makeup for weddings and events.', 'MANUAL', ['FIXED', 5000]), offering('booktrix-e2e-offering-glow-waxing', 'Beauty', 'Brazilian Wax', 45, 10500, ['laborie'], ['booktrix-e2e-member-glow-zaria'], 'Private professional waxing appointment with calming aftercare.', 'MANUAL', ['PERCENTAGE', 30])],
@@ -95,7 +93,7 @@ async function upsertUser(id: string, email: string, name: string, role: Role) {
 }
 
 async function seedDemoBusiness(fixture: BusinessFixture) {
-  const business = await prisma.business.upsert({ where: { slug: fixture.slug }, create: { id: fixture.id, name: fixture.name, slug: fixture.slug, status: 'PUBLISHED' }, update: { name: fixture.name, status: 'PUBLISHED' } })
+  const business = await prisma.business.upsert({ where: { slug: fixture.slug }, create: { id: fixture.id, name: fixture.name, slug: fixture.slug, coverImageUrl: fixture.coverImageUrl, status: 'PUBLISHED' }, update: { name: fixture.name, coverImageUrl: fixture.coverImageUrl, status: 'PUBLISHED' } })
   await prisma.businessSetup.upsert({ where: { businessId: business.id }, create: { businessId: business.id, profileComplete: true, firstLocationComplete: true, policiesAccepted: true, publicationReady: true }, update: { profileComplete: true, firstLocationComplete: true, policiesAccepted: true, publicationReady: true } })
   const locations = new Map<string, { id: string }>()
   for (const item of fixture.locations) {
