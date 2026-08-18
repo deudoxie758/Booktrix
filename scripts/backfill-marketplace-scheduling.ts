@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import { MARKETPLACE_BACKFILL_TRANSACTION_OPTIONS } from '../modules/bookings/backfill-execution'
 import { planMarketplaceSchedulingBackfill } from '../modules/bookings/legacy-backfill'
 
 async function run() {
@@ -56,8 +57,8 @@ async function run() {
   if (!apply) return
 
   const employeeById = new Map(employees.map((employee) => [employee.id, employee]))
-  await prisma.$transaction(async (tx) => {
-    for (const item of plan.offerings) {
+  for (const item of plan.offerings) {
+    await prisma.$transaction(async (tx) => {
       const offering = await tx.serviceOffering.upsert({
         where: { legacySubserviceId: item.legacySubserviceId },
         update: {
@@ -86,9 +87,11 @@ async function run() {
         update: { active: true },
         create: { offeringId: offering.id, locationId: serviceLocation.locationId },
       })
-    }
+    }, MARKETPLACE_BACKFILL_TRANSACTION_OPTIONS)
+  }
 
-    for (const item of plan.orders) {
+  for (const item of plan.orders) {
+    await prisma.$transaction(async (tx) => {
       const order = await tx.bookingOrder.upsert({
         where: { legacyBookingId: item.legacyBookingId },
         update: { status: item.status, paidCents: item.paidCents },
@@ -137,8 +140,8 @@ async function run() {
           status: segment.status,
         },
       })
-    }
-  })
+    }, MARKETPLACE_BACKFILL_TRANSACTION_OPTIONS)
+  }
 }
 
 run()
