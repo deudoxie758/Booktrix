@@ -12,10 +12,11 @@ export default function SignInPage() {
 	const [isLoading, setIsLoading] = useState(false)
 	const [error, setError] = useState('')
 	const searchParams = useSearchParams()
-	const callbackUrl = buildPostAuthRedirectUrl(searchParams.get('callbackUrl'), window.location.origin)
+	const getCallbackUrl = () => buildPostAuthRedirectUrl(searchParams.get('callbackUrl'), window.location.origin)
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
+		const callbackUrl = getCallbackUrl()
 		setIsLoading(true)
 		setError('')
 
@@ -158,7 +159,7 @@ export default function SignInPage() {
 						</div>
 
 						<button
-							onClick={() => signIn('google', { callbackUrl })}
+							onClick={() => signIn('google', { callbackUrl: getCallbackUrl() })}
 							className='mt-4 w-full py-3 px-4 border border-zinc-800 rounded-xl text-zinc-300 font-medium hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-warm-400 focus:ring-offset-2 focus:ring-offset-black transition-all flex items-center justify-center gap-3'
 						>
 							<svg className='w-5 h-5' viewBox='0 0 24 24'>

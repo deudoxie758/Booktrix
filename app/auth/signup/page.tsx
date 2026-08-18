@@ -14,10 +14,11 @@ export default function SignUpPage() {
 	const [error, setError] = useState('')
 	const [success, setSuccess] = useState('')
 	const searchParams = useSearchParams()
-	const callbackUrl = buildPostAuthRedirectUrl(searchParams.get('callbackUrl'), window.location.origin)
+	const getCallbackUrl = () => buildPostAuthRedirectUrl(searchParams.get('callbackUrl'), window.location.origin)
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
+		const callbackUrl = getCallbackUrl()
 		setError('')
 		setSuccess('')
 		setIsLoading(true)
@@ -200,7 +201,7 @@ export default function SignUpPage() {
 					<button
 						onClick={() =>
 							signIn('google', {
-								callbackUrl,
+								callbackUrl: getCallbackUrl(),
 								redirect: true,
 							})
 						}

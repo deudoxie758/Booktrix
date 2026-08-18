@@ -15,7 +15,7 @@ export default defineConfig({
 	webServer: {
 		command: 'npm run dev -- --port 3118',
 		url: 'http://127.0.0.1:3118',
-		env: { NEXTAUTH_URL: 'http://127.0.0.1:3118' },
+		env: { NEXTAUTH_URL: 'http://127.0.0.1:3118', NEXTAUTH_SECRET: 'booktrix-playwright-test-secret' },
 		reuseExistingServer: false,
 	},
 })
