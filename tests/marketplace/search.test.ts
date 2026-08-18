@@ -23,4 +23,13 @@ describe('marketplace search', () => {
     )
     expect(results.map((result) => result.businessSlug)).toEqual(['one', 'two'])
   })
+
+  it('prioritizes storefronts with completed cover imagery', async () => {
+    const base = { businessStatus: 'PUBLISHED' as const, offeringName: 'Service', category: 'Wellness', priceCents: 10000, durationMinutes: 60, locations: [{ name: 'City', address: 'Castries' }] }
+    const results = await searchMarketplace({ take: 1 }, { list: async () => [
+      { ...base, id: 'plain', businessName: 'Plain', businessSlug: 'plain' },
+      { ...base, id: 'illustrated', businessName: 'Illustrated', businessSlug: 'illustrated', coverImageUrl: '/images/illustrated.png' },
+    ] })
+    expect(results[0]?.businessSlug).toBe('illustrated')
+  })
 })

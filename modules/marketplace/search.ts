@@ -71,5 +71,8 @@ export async function searchMarketplace(input: SearchInput, repository: SearchRe
     current.offerings.push({ id: row.id, offeringName: row.offeringName, category: row.category, priceCents: row.priceCents, durationMinutes: row.durationMinutes })
     grouped.set(row.businessSlug, current)
   }
-  return Array.from(grouped.values()).slice(normalized.skip, normalized.skip + normalized.take)
+  const storefronts = Array.from(grouped.values()).sort((left, right) =>
+    Number(Boolean(right.coverImageUrl)) - Number(Boolean(left.coverImageUrl)),
+  )
+  return storefronts.slice(normalized.skip, normalized.skip + normalized.take)
 }
