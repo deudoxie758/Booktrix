@@ -61,6 +61,51 @@ enum PaymentStatus {
     REFUNDED
 }
 
+enum ConfirmationMode {
+    AUTOMATIC
+    MANUAL
+}
+
+enum PaymentChoice {
+    FULL
+    DEPOSIT
+    CASH
+}
+
+enum DepositKind {
+    FIXED
+    PERCENTAGE
+}
+
+enum BookingOrderStatus {
+    DRAFT
+    HELD
+    PAYMENT_PENDING
+    REQUESTED
+    CONFIRMED
+    COMPLETED
+    PARTIALLY_CANCELLED
+    CANCELLED
+    EXPIRED
+}
+
+enum BookingSegmentStatus {
+    REQUESTED
+    CONFIRMED
+    IN_PROGRESS
+    COMPLETED
+    REJECTED
+    CANCELLED
+    NO_SHOW
+}
+
+enum BookingOrigin {
+    CUSTOMER
+    MANAGER
+    WALK_IN
+    LEGACY
+}
+
 model User {
     id             String    @id @default(cuid())
     email          String    @unique
@@ -78,6 +123,8 @@ model User {
     BusinessMemberships BusinessMembership[]
     SubmittedBusinessApplications BusinessApplication[] @relation("BusinessApplicant")
     ReviewedBusinessApplications BusinessApplication[] @relation("BusinessReviewer")
+    BookingOrders BookingOrder[]
+    BookingHolds BookingHold[]
     createdAt      DateTime  @default(now())
     updatedAt      DateTime  @updatedAt
 }
@@ -93,6 +140,10 @@ model Business {
     Locations       Location[]
     Applications    BusinessApplication[]
     Setup           BusinessSetup?
+    ServiceOfferings ServiceOffering[]
+    BookingHolds BookingHold[]
+    BookingOrders BookingOrder[]
+    SchedulingLocks SchedulingLock[]
     createdAt       DateTime             @default(now())
     updatedAt       DateTime             @updatedAt
 }
@@ -110,6 +161,14 @@ model Location {
     businessHours Json?
     isActive    Boolean              @default(true)
     Assignments LocationAssignment[]
+    ServiceLocations ServiceLocation[]
+    StaffQualifications StaffQualification[]
+    Hours LocationHours[]
+    StaffSchedules StaffSchedule[]
+    StaffTimeOff StaffTimeOff[]
+    HoldSegments BookingHoldSegment[]
+    BookingSegments BookingSegment[]
+    SchedulingLocks SchedulingLock[]
     createdAt   DateTime             @default(now())
     updatedAt   DateTime             @updatedAt
 
@@ -126,6 +185,11 @@ model BusinessMembership {
     business   Business             @relation(fields: [businessId], references: [id])
     user       User                 @relation(fields: [userId], references: [id])
     Locations  LocationAssignment[]
+    Qualifications StaffQualification[]
+    Schedules StaffSchedule[]
+    TimeOff StaffTimeOff[]
+    HoldSegments BookingHoldSegment[]
+    BookingSegments BookingSegment[]
     createdAt  DateTime             @default(now())
     updatedAt  DateTime             @updatedAt
 
@@ -178,6 +242,234 @@ model BusinessSetup {
     business             Business @relation(fields: [businessId], references: [id])
     createdAt            DateTime @default(now())
     updatedAt            DateTime @updatedAt
+}
+
+model ServiceOffering {
+    id                  String           @id @default(cuid())
+    businessId          String
+    business            Business         @relation(fields: [businessId], references: [id])
+    legacySubserviceId  String?          @unique
+    category            String
+    name                String
+    description         String?          @db.Text
+    durationMinutes     Int
+    preparationMinutes  Int              @default(0)
+    cleanupMinutes      Int              @default(0)
+    priceCents          Int
+    currency            String           @default("XCD")
+    capacity            Int              @default(1)
+    confirmationMode    ConfirmationMode @default(AUTOMATIC)
+    allowFullPayment    Boolean          @default(true)
+    allowDeposit        Boolean          @default(false)
+    allowCash           Boolean          @default(true)
+    depositKind         DepositKind?
+    depositValue        Int?
+    cancellationLeadMin Int              @default(0)
+    active              Boolean          @default(true)
+    Locations           ServiceLocation[]
+    Qualifications      StaffQualification[]
+    HoldSegments        BookingHoldSegment[]
+    BookingSegments     BookingSegment[]
+    createdAt           DateTime         @default(now())
+    updatedAt           DateTime         @updatedAt
+
+    @@index([businessId, active, category])
+    @@index([businessId, name])
+}
+
+model ServiceLocation {
+    offeringId String
+    locationId String
+    active     Boolean         @default(true)
+    offering   ServiceOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+    location   Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+    createdAt  DateTime        @default(now())
+    updatedAt  DateTime        @updatedAt
+
+    @@id([offeringId, locationId])
+    @@index([locationId, active])
+}
+
+model StaffQualification {
+    membershipId String
+    offeringId   String
+    locationId   String
+    membership   BusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+    offering     ServiceOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+    location     Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+    active       Boolean @default(true)
+    createdAt    DateTime @default(now())
+
+    @@id([membershipId, offeringId, locationId])
+    @@index([offeringId, locationId, active])
+}
+
+model LocationHours {
+    id        String   @id @default(cuid())
+    locationId String
+    location  Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+    weekday   Int
+    startMinute Int
+    endMinute Int
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([locationId, weekday, startMinute, endMinute])
+    @@index([locationId, weekday])
+}
+
+model StaffSchedule {
+    id           String @id @default(cuid())
+    membershipId String
+    locationId   String
+    membership   BusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+    location     Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+    weekday      Int
+    startMinute  Int
+    endMinute    Int
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    @@unique([membershipId, locationId, weekday, startMinute, endMinute])
+    @@index([locationId, weekday])
+}
+
+model StaffTimeOff {
+    id           String @id @default(cuid())
+    membershipId String
+    locationId   String
+    membership   BusinessMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+    location     Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+    startsAt     DateTime
+    endsAt       DateTime
+    reason       String?
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    @@index([membershipId, startsAt, endsAt])
+    @@index([locationId, startsAt])
+}
+
+model SchedulingLock {
+    id         String @id @default(cuid())
+    lockKey    String @unique
+    businessId String
+    locationId String
+    bucketAt   DateTime
+    business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+    location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+    updatedAt  DateTime @updatedAt
+
+    @@index([locationId, bucketAt])
+}
+
+model BookingHold {
+    id             String @id @default(cuid())
+    token          String @unique
+    idempotencyKey String @unique
+    businessId     String
+    customerId     String?
+    checkoutIdentity String
+    expiresAt      DateTime
+    consumedAt     DateTime?
+    business       Business @relation(fields: [businessId], references: [id])
+    customer       User? @relation(fields: [customerId], references: [id])
+    Segments       BookingHoldSegment[]
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+
+    @@index([businessId, expiresAt, consumedAt])
+    @@index([customerId, expiresAt])
+}
+
+model BookingHoldSegment {
+    id             String @id @default(cuid())
+    holdId         String
+    offeringId     String
+    locationId     String
+    membershipId   String
+    startsAt       DateTime
+    endsAt         DateTime
+    occupiedStartsAt DateTime
+    occupiedEndsAt DateTime
+    attendeeCount  Int @default(1)
+    priceCents     Int
+    hold           BookingHold @relation(fields: [holdId], references: [id], onDelete: Cascade)
+    offering       ServiceOffering @relation(fields: [offeringId], references: [id])
+    location       Location @relation(fields: [locationId], references: [id])
+    membership     BusinessMembership @relation(fields: [membershipId], references: [id])
+
+    @@index([membershipId, occupiedStartsAt, occupiedEndsAt])
+    @@index([offeringId, locationId, startsAt])
+}
+
+model BookingOrder {
+    id                  String @id @default(cuid())
+    businessId          String
+    customerId          String?
+    legacyBookingId     String? @unique
+    idempotencyKey      String @unique
+    origin              BookingOrigin @default(CUSTOMER)
+    status              BookingOrderStatus @default(DRAFT)
+    customerName        String?
+    customerEmail       String?
+    customerPhone       String?
+    currency            String @default("XCD")
+    subtotalCents       Int
+    paidCents           Int @default(0)
+    paymentChoice       PaymentChoice
+    dueOnlineCents      Int @default(0)
+    dueAtAppointmentCents Int @default(0)
+    business            Business @relation(fields: [businessId], references: [id])
+    customer            User? @relation(fields: [customerId], references: [id])
+    Segments            BookingSegment[]
+    createdAt           DateTime @default(now())
+    updatedAt           DateTime @updatedAt
+
+    @@index([businessId, status, createdAt])
+    @@index([customerId, createdAt])
+}
+
+model BookingSegment {
+    id               String @id @default(cuid())
+    orderId          String
+    offeringId       String
+    locationId       String
+    membershipId     String?
+    legacyBookingId  String? @unique
+    startsAt         DateTime
+    endsAt           DateTime
+    occupiedStartsAt DateTime
+    occupiedEndsAt   DateTime
+    attendeeCount    Int @default(1)
+    priceCents       Int
+    confirmationMode ConfirmationMode
+    status           BookingSegmentStatus
+    order            BookingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+    offering         ServiceOffering @relation(fields: [offeringId], references: [id])
+    location         Location @relation(fields: [locationId], references: [id])
+    membership       BusinessMembership? @relation(fields: [membershipId], references: [id])
+    Overrides        BookingOverride[]
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+
+    @@index([locationId, startsAt, status])
+    @@index([membershipId, occupiedStartsAt, occupiedEndsAt])
+    @@index([orderId, startsAt])
+}
+
+model BookingOverride {
+    id             String @id @default(cuid())
+    segmentId      String
+    actorUserId    String
+    reason         String @db.Text
+    previousValues Json
+    resultingValues Json
+    segment        BookingSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+    createdAt      DateTime @default(now())
+
+    @@index([segmentId, createdAt])
+    @@index([actorUserId, createdAt])
 }
 
 model Spa {
