@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { SignOutButton } from '@/components/auth/SignOutButton'
 import { CustomerBookingCard } from '@/components/booking/CustomerBookingCard'
 import type { AccountHubModel } from '@/modules/profile/account-hub'
 import { workspaceSelectionHref } from '@/modules/organizations/workspace-selection'
@@ -11,7 +12,7 @@ export function AccountHub({ hub }: { hub: AccountHubModel }) {
   return <main className="min-h-screen bg-cream-100 px-5 py-8 sm:px-8 sm:py-12"><div className="mx-auto max-w-6xl space-y-10">
     <header className="overflow-hidden rounded-[2rem] bg-cocoa-950 px-6 py-8 text-cream-50 shadow-soft sm:px-9 sm:py-10"><div className="flex flex-col gap-7 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-center gap-5"><div aria-hidden="true" className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-clay-500 text-2xl font-bold text-white sm:h-20 sm:w-20">{hub.identity.initial}</div><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-[.2em] text-sand-200">My account</p><h1 className="mt-2 font-display text-4xl sm:text-5xl">Your Booktrix account</h1><p className="mt-2 truncate text-sm text-cream-100/75">{hub.identity.name} · {hub.identity.email}</p></div></div>
-      <div className="flex flex-wrap gap-3"><Link href="/profile/bookings" className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-cocoa-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay-400">View all bookings</Link><Link href="/search" className="rounded-full border border-white/25 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay-400">Discover services</Link></div>
+      <div className="flex flex-wrap gap-3"><Link href="/profile/bookings" className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-cocoa-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay-400">View all bookings</Link><Link href="/search" className="rounded-full border border-white/25 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay-400">Discover services</Link><SignOutButton tone="account" /></div>
     </div></header>
 
     <section aria-labelledby="customer-summary-heading"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-clay-600">Bookings</p><h2 id="customer-summary-heading" className="mt-1 font-display text-3xl text-cocoa-950">Your appointments</h2></div><span className="rounded-full bg-sand-100 px-3 py-1.5 text-xs font-semibold text-cocoa-700">{hub.identity.points} points</span></div>

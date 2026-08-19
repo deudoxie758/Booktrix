@@ -1,5 +1,8 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }))
+vi.mock('next-auth/react', () => ({ signOut }))
 
 import { AccountHub } from '@/app/profile/AccountHub'
 
@@ -11,12 +14,22 @@ const baseHub = {
 }
 
 describe('AccountHub', () => {
+  beforeEach(() => signOut.mockReset())
+
   it('presents the customer account as the main account landing page', () => {
     render(<AccountHub hub={baseHub} />)
 
     expect(screen.getByRole('heading', { name: /your booktrix account/i })).toBeVisible()
     expect(screen.getByRole('link', { name: /view all bookings/i })).toHaveAttribute('href', '/profile/bookings')
     expect(screen.getByRole('link', { name: /discover services/i })).toHaveAttribute('href', '/search')
+  })
+
+  it('offers sign out from the account hub', async () => {
+    signOut.mockResolvedValue(undefined)
+    render(<AccountHub hub={baseHub} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
+    await waitFor(() => expect(signOut).toHaveBeenCalledWith({ callbackUrl: '/' }))
   })
 
   it('shows each role workspace with honest role-specific shortcuts', () => {
