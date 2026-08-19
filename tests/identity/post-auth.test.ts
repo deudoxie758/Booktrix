@@ -7,8 +7,8 @@ import {
 } from '@/modules/identity/post-auth'
 
 describe('post-auth routing', () => {
-	it('sends a new customer to their Phase 2 bookings profile', () => {
-		expect(resolvePostAuthDestination({ platformRole: 'USER', memberships: [] })).toBe('/profile/bookings')
+	it('sends a new customer to their account hub', () => {
+		expect(resolvePostAuthDestination({ platformRole: 'USER', memberships: [] })).toBe('/profile')
 	})
 
 	it('sends administrators to the revised admin workspace', () => {

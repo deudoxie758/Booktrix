@@ -8,7 +8,7 @@ export function PublicHeader({ signedIn = false }: { signedIn?: boolean }) {
 				<Link href="/search" className="hover:text-cocoa-950">Discover</Link>
 				<Link href="/for-business" className="hover:text-cocoa-950">For businesses</Link>
 			</nav>
-			<Link href={signedIn ? '/api/auth/redirect' : '/auth/sign-in'} className="rounded-full bg-cocoa-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-cocoa-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay-500 focus-visible:ring-offset-2">{signedIn ? 'My account' : 'Sign in'}</Link>
+			<Link href={signedIn ? '/profile' : '/auth/sign-in'} className="rounded-full bg-cocoa-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-cocoa-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay-500 focus-visible:ring-offset-2">{signedIn ? 'My account' : 'Sign in'}</Link>
 		</div>
 	</header>
 }

@@ -17,7 +17,7 @@ export function resolvePostAuthDestination({ platformRole, memberships, selected
 	if (role === 'ACCOUNTS') return '/business/finance'
 	if (role === 'STAFF') return '/business/schedule'
 
-	return '/profile/bookings'
+	return '/profile'
 }
 
 export function resolveSafePostAuthDestination({ callbackUrl, baseUrl, fallback, identity }: { callbackUrl: string | null | undefined; baseUrl: string; fallback: string; identity?: PostAuthIdentity }) {
@@ -42,11 +42,11 @@ export function buildPostAuthRedirectUrl(callbackUrl: string | null | undefined,
 
 function isRevisedPath(pathname: string) {
 	if (obsoletePaths.some((path) => pathMatches(pathname, path))) return false
-	return pathname === '/' || ['/search', '/s', '/book', '/profile/bookings', '/for-business', '/business', '/admin'].some((path) => pathMatches(pathname, path))
+	return pathname === '/' || ['/search', '/s', '/book', '/profile', '/for-business', '/business', '/admin'].some((path) => pathMatches(pathname, path))
 }
 
 function canUsePostAuthPath(pathname: string, { platformRole, memberships, selectedMembership }: PostAuthIdentity) {
-	if (pathname === '/' || ['/search', '/s', '/book', '/profile/bookings', '/for-business'].some((path) => pathMatches(pathname, path))) return true
+	if (pathname === '/' || ['/search', '/s', '/book', '/profile', '/for-business'].some((path) => pathMatches(pathname, path))) return true
 	if (pathMatches(pathname, '/admin')) return platformRole === 'ADMIN'
 
 	const role = selectedWorkspaceRole({ memberships, selectedMembership })

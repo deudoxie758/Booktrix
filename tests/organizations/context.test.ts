@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { selectAuthorizedContext } from '@/modules/organizations/context'
+import { preferredBusinessId, selectAuthorizedContext } from '@/modules/organizations/context'
 
 const memberships = [
 	{ businessId: 'business-1', active: true, locationIds: ['loc-1', 'loc-2'] },
@@ -17,5 +17,11 @@ describe('business context selection', () => {
 
 	it('uses the first active membership when no selection exists', () => {
 		expect(selectAuthorizedContext(memberships)).toEqual({ businessId: 'business-1', locationId: 'loc-1' })
+	})
+
+	it('ignores a stale stored business when another active membership remains', () => {
+		const selectedBusinessId = preferredBusinessId(memberships, undefined, 'removed-business')
+		expect(selectedBusinessId).toBeUndefined()
+		expect(selectAuthorizedContext(memberships, selectedBusinessId)).toEqual({ businessId: 'business-1', locationId: 'loc-1' })
 	})
 })

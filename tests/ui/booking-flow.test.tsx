@@ -50,6 +50,41 @@ describe('BookingFlow', () => {
     expect(screen.getByRole('radio', { name: /pay cash/i })).toBeVisible()
   })
 
+  it('shows held appointment details in Saint Lucia on review and completion', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: { id: 'order-1' } }) })
+    vi.stubGlobal('fetch', fetch)
+    render(<BookingFlow initialState={{
+      ...state,
+      hold: {
+        token: 'hold-1',
+        expiresAt: '2026-08-20T13:10:00.000Z',
+        expired: false,
+        segments: [{
+          offeringId: 'service-1',
+          offeringName: 'Massage',
+          startsAt: '2026-08-20T14:00:00.000Z',
+          endsAt: '2026-08-20T15:00:00.000Z',
+          locationName: 'Castries',
+          professionalName: 'Amara',
+        }],
+      },
+    }} />)
+
+    fireEvent.click(screen.getByRole('radio', { name: /pay cash/i }))
+    fireEvent.click(screen.getByRole('button', { name: /review booking/i }))
+    expect(screen.getByText(/thursday, 20 august 2026/i)).toBeVisible()
+    expect(screen.getByText(/10:00 am/i)).toBeVisible()
+    expect(screen.getByText(/castries/i)).toBeVisible()
+    expect(screen.getByText(/with amara/i)).toBeVisible()
+    expect(screen.getAllByText('Massage').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: /confirm booking/i }))
+    await screen.findByRole('status')
+    expect(screen.getByText(/thursday, 20 august 2026/i)).toBeVisible()
+    expect(screen.getByText(/10:00 am/i)).toBeVisible()
+    vi.unstubAllGlobals()
+  })
+
   it('keeps server-rendered payment controls disabled until checkout hydrates', () => {
     const html = renderToString(<BookingFlow initialState={{ ...state, hold: { token: 'hold-1', expiresAt: '2026-08-20T13:10:00.000Z', expired: false } }} />)
 

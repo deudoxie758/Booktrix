@@ -16,10 +16,20 @@ type CheckoutState = {
   businessName: string
   locations: Array<{ id: string; name: string }>
   offerings: Array<{ id: string; name: string; durationMinutes: number; priceCents: number; currency: string; paymentChoices: readonly string[] }>
+  professionals?: Array<{ id: string; name: string | null }>
   selectedOfferingIds: string[]
-  hold: null | { token: string; expiresAt: string; expired: boolean }
+  hold: null | { token: string; expiresAt: string; expired: boolean; segments?: HeldAppointmentSegment[] }
   authenticated: boolean
   rescheduleOrderId?: string
+}
+
+type HeldAppointmentSegment = {
+  offeringId: string
+  offeringName: string
+  startsAt: string
+  endsAt: string
+  locationName: string
+  professionalName?: string | null
 }
 
 export function BookingFlow({ initialState }: { initialState: CheckoutState }) {
@@ -78,7 +88,23 @@ export function BookingFlow({ initialState }: { initialState: CheckoutState }) {
     try {
       const response = await fetch('/api/booking-holds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businessId: initialState.businessId, locationId, checkoutIdentity: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), segments: slot.segments.map((segment) => ({ offeringId: segment.offeringId, membershipId: segment.membershipId, start: segment.start, attendeeCount: segment.attendeeCount })) }) })
       const body = await response.json()
-      if (response.ok) setHold({ token: body.token, expiresAt: body.expiresAt, expired: false })
+      if (response.ok) {
+        const locationName = initialState.locations.find((location) => location.id === locationId)?.name ?? 'Selected location'
+        const segments = slot.segments.map((segment) => {
+          const offering = offerings.find((item) => item.id === segment.offeringId)
+          const startsAt = String(segment.start)
+          const endsAt = segment.end ? String(segment.end) : new Date(new Date(startsAt).getTime() + (offering?.durationMinutes ?? 0) * 60_000).toISOString()
+          return {
+            offeringId: String(segment.offeringId),
+            offeringName: offering?.name ?? 'Selected service',
+            startsAt,
+            endsAt,
+            locationName,
+            professionalName: initialState.professionals?.find((professional) => professional.id === segment.membershipId)?.name,
+          }
+        })
+        setHold({ token: body.token, expiresAt: body.expiresAt, expired: false, segments })
+      }
       else setHoldError(body.message ?? 'That time could not be reserved. Please choose another.')
     } catch {
       setHoldError('That time could not be reserved. Please choose another.')
@@ -121,7 +147,15 @@ export function BookingFlow({ initialState }: { initialState: CheckoutState }) {
       {step === 2 && <><h2 className="mb-5 font-display text-3xl text-cocoa-950">Choose a date and time</h2><AvailabilityPicker slots={slots} loading={loadingSlots} reserving={reserving} onDate={loadDate} onSelect={reserve} />{holdError && <div ref={holdAlertRef} tabIndex={-1} role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{holdError}</div>}{hold && !hold.expired && <p role="status" className="mt-4 rounded-2xl bg-clay-100 p-4 text-sm font-semibold text-cocoa-900">Time reserved for 10 minutes.</p>}<button disabled={reserving || !date || !hold || hold.expired} onClick={() => setStep(initialState.rescheduleOrderId ? 5 : 3)} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{initialState.rescheduleOrderId ? 'Review new time' : 'Continue to details'}</button></>}
       {step === 3 && <><h2 className="font-display text-3xl text-cocoa-950">Customer details</h2><p className="mt-2 text-cocoa-600">You’ll sign in before confirming so this booking stays connected to your account.</p>{initialState.authenticated ? <button onClick={() => setStep(4)} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">Continue to payment</button> : hold && <Link href={signInForCheckoutUrl(initialState.businessSlug, hold.token)} className="mt-6 inline-flex rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">Sign in to continue</Link>}</>}
       {step === 4 && <><PaymentChoice choices={paymentChoices} value={payment} disabled={!hydrated} onChange={setPayment} /><button disabled={!hydrated || !payment} onClick={() => setStep(5)} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">Review booking</button></>}
-      {step === 5 && <>{orderId ? <><h2 className="font-display text-3xl text-cocoa-950">Booking complete</h2><p ref={bookingCompleteRef} tabIndex={-1} role="status" className="mt-2 text-cocoa-600">Booking complete. You can view your booking details below.</p><Link href={`/profile/bookings/${orderId}`} className="mt-6 inline-flex rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">View your booking</Link></> : <><h2 className="font-display text-3xl text-cocoa-950">{initialState.rescheduleOrderId ? 'Confirm your new time' : 'Review and confirm'}</h2><p className="mt-2 text-cocoa-600">{initialState.rescheduleOrderId ? 'Your original appointment stays reserved until you confirm this replacement.' : 'Your slot is reserved while checkout completes.'}</p>{error && <p ref={checkoutAlertRef} tabIndex={-1} role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}<button disabled={submitting} onClick={confirm} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{submitting ? 'Confirming…' : initialState.rescheduleOrderId ? 'Confirm new time' : 'Confirm booking'}</button></>}</>}
+      {step === 5 && <>{orderId ? <><h2 className="font-display text-3xl text-cocoa-950">Booking complete</h2><p ref={bookingCompleteRef} tabIndex={-1} role="status" className="mt-2 text-cocoa-600">Booking complete. You can view your booking details below.</p><AppointmentDetails segments={hold?.segments ?? []} /><Link href={`/profile/bookings/${orderId}`} className="mt-6 inline-flex rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">View your booking</Link></> : <><h2 className="font-display text-3xl text-cocoa-950">{initialState.rescheduleOrderId ? 'Confirm your new time' : 'Review and confirm'}</h2><p className="mt-2 text-cocoa-600">{initialState.rescheduleOrderId ? 'Your original appointment stays reserved until you confirm this replacement.' : 'Your slot is reserved while checkout completes.'}</p><AppointmentDetails segments={hold?.segments ?? []} />{error && <p ref={checkoutAlertRef} tabIndex={-1} role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}<button disabled={submitting} onClick={confirm} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{submitting ? 'Confirming…' : initialState.rescheduleOrderId ? 'Confirm new time' : 'Confirm booking'}</button></>}</>}
     </section><div className="lg:sticky lg:top-6 lg:self-start"><BookingSummary offerings={offerings} /></div></div>
   </div>
+}
+
+const appointmentDate = new Intl.DateTimeFormat('en-LC', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/St_Lucia' })
+const appointmentTime = new Intl.DateTimeFormat('en-LC', { hour: 'numeric', minute: '2-digit', timeZone: 'America/St_Lucia' })
+
+function AppointmentDetails({ segments }: { segments: HeldAppointmentSegment[] }) {
+  if (!segments.length) return null
+  return <section aria-label="Appointment details" className="mt-6 rounded-2xl border border-sand-200 bg-white p-4"><p className="text-xs font-bold uppercase tracking-[.16em] text-clay-600">Appointment</p><div className="mt-3 space-y-4">{segments.map((segment, index) => <div key={`${segment.offeringId}-${segment.startsAt}-${index}`}><p className="font-semibold text-cocoa-950">{segment.offeringName}</p><p className="mt-1 text-sm text-cocoa-800"><span>{appointmentDate.format(new Date(segment.startsAt))}</span> at <span>{appointmentTime.format(new Date(segment.startsAt))}</span></p><p className="mt-1 text-sm text-cocoa-600">{segment.locationName}{segment.professionalName ? ` · With ${segment.professionalName}` : ''}</p></div>)}</div></section>
 }

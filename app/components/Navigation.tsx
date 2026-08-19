@@ -103,7 +103,7 @@ export default function Navigation({ session }: { session: any }) {
 
 									{!isAdmin ? (
 										<>
-											<Link href='/profile' className='block px-4 py-2 text-sm text-gray-700 hover:bg-warm-50 hover:text-warm-600'>My Bookings</Link>
+											<Link href='/profile' className='block px-4 py-2 text-sm text-gray-700 hover:bg-warm-50 hover:text-warm-600'>My account</Link>
 											<Link href='/profile/notifications' className='block px-4 py-2 text-sm text-gray-700 hover:bg-warm-50 hover:text-warm-600'>Notifications</Link>
 											<Link href='/support' className='block px-4 py-2 text-sm text-gray-700 hover:bg-warm-50 hover:text-warm-600'>Support & Help</Link>
 											<Link href='/search' className='block px-4 py-2 text-sm text-gray-700 hover:bg-warm-50 hover:text-warm-600'>Search Locations</Link>
@@ -151,7 +151,7 @@ export default function Navigation({ session }: { session: any }) {
 								<>
 									{!isAdmin && (
 										<>
-											<Link href='/profile' className='block px-4 py-2 text-gray-700 hover:bg-warm-50 hover:text-warm-600 rounded-lg' onClick={() => setIsMenuOpen(false)}>My Bookings</Link>
+											<Link href='/profile' className='block px-4 py-2 text-gray-700 hover:bg-warm-50 hover:text-warm-600 rounded-lg' onClick={() => setIsMenuOpen(false)}>My account</Link>
 											{userRole === 'OWNER' && (
 												<Link href='/manager' className='block px-4 py-2 text-gray-700 hover:bg-warm-50 hover:text-warm-600 rounded-lg' onClick={() => setIsMenuOpen(false)}>Manager Dashboard</Link>
 											)}
