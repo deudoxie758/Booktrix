@@ -5,6 +5,7 @@ import { parseCreateBookingRequest, toBookingErrorResponse } from '@/modules/boo
 import { createBookingOrder } from '@/modules/bookings/orders'
 import { createPrismaOrderStore, listCustomerOrders } from '@/modules/bookings/repository'
 import { persistBookingNotification } from '@/modules/notifications/booking-events'
+import { paymentChoiceEnabled } from '@/lib/payment-mode'
 
 export async function GET() {
   try {
@@ -20,6 +21,9 @@ export async function POST(request: Request) {
   try {
     const actor = await requireActor()
     const input = parseCreateBookingRequest(await request.json())
+    if (!paymentChoiceEnabled(input.paymentChoice!)) {
+      return NextResponse.json({ error: 'Online payments are not available. Please select cash payment.' }, { status: 503 })
+    }
     const order = await createBookingOrder({
       holdToken: input.holdToken!,
       idempotencyKey: input.idempotencyKey!,

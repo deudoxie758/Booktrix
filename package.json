@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "prestart": "node scripts/validate-production-env.js",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
@@ -18,6 +19,8 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "admin:create": "node scripts/create_admin.js",
     "db:seed": "tsx prisma/seed.js",
     "postinstall": "prisma generate"
   },

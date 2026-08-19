@@ -1,13 +1,12 @@
 const { PrismaClient } = require('@prisma/client')
 const bcrypt = require('bcryptjs')
 require('dotenv').config()
+const { readAdminBootstrapConfig } = require('./admin-bootstrap-config')
 
 const prisma = new PrismaClient()
 
 async function main() {
-  const email = process.env.ADMIN_EMAIL || 'admin@example.com'
-  const password = process.env.ADMIN_PASSWORD || 'password123'
-  const name = process.env.ADMIN_NAME || 'Admin User'
+  const { email, password, name } = readAdminBootstrapConfig(process.env)
 
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) {

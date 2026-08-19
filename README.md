@@ -5,7 +5,7 @@ Booktrix is a Saint Lucia–based marketplace and operations platform for appoin
 ## Local setup
 
 1. Run `npm install`.
-2. Create `.env` with `DATABASE_URL`, `NEXTAUTH_SECRET`, and `NEXTAUTH_URL`.
+2. Copy `.env.example` to `.env` and set `DATABASE_URL`, `NEXTAUTH_SECRET`, and `NEXTAUTH_URL`.
 3. Optionally add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 4. Run `npx prisma migrate deploy`.
 5. For a legacy database, run each backfill with `--dry-run`, review its counts, then rerun it with `--apply`:
@@ -27,3 +27,9 @@ Availability is calculated in `America/St_Lucia`. Checkout holds reserve the com
 `npm run db:seed` intentionally replaces seeded data and creates representative customer, owner, manager, accounts, and staff access. Never run it against data that must be retained. `npm run db:seed:e2e` only upserts records under the `booktrix-e2e-*` namespace.
 
 WiPay is not live in Phase 2. Payment calls must use `modules/payments`; the legacy Stripe endpoint is compatibility-only and returns `503` when unconfigured.
+
+## Private staging
+
+Booktrix includes a single-instance Railway configuration with a database-backed `/api/health` readiness check and pre-deploy Prisma migrations. Keep `ONLINE_PAYMENTS_ENABLED=false` so staging remains cash-only. Production configuration fails closed when its database URL, HTTPS NextAuth URL, or high-entropy NextAuth secret is missing.
+
+The legacy booking page redirects into `/book/[businessSlug]`, and the fake legacy creation endpoint is retired. See `DEPLOYMENT.md` for the Railway checklist, database connection limits, secure administrator bootstrap, and the remaining gates before public launch.
