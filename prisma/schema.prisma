@@ -113,6 +113,11 @@ enum BookingOrigin {
     LEGACY
 }
 
+enum CashCollectionKind {
+    COLLECTION
+    ADJUSTMENT
+}
+
 model User {
     id             String    @id @default(cuid())
     email          String    @unique
@@ -154,6 +159,7 @@ model Business {
     BookingOrders BookingOrder[]
     SchedulingLocks SchedulingLock[]
     Invitations BusinessInvitation[]
+    CashCollections CashCollection[]
     createdAt       DateTime             @default(now())
     updatedAt       DateTime             @updatedAt
 }
@@ -181,6 +187,7 @@ model Location {
     SchedulingLocks SchedulingLock[]
     InvitationLocations BusinessInvitationLocation[]
     InvitationQualifications BusinessInvitationQualification[]
+    CashCollections CashCollection[]
     createdAt   DateTime             @default(now())
     updatedAt   DateTime             @updatedAt
 
@@ -202,6 +209,7 @@ model BusinessMembership {
     TimeOff StaffTimeOff[]
     HoldSegments BookingHoldSegment[]
     BookingSegments BookingSegment[]
+    CashCollections CashCollection[]
     createdAt  DateTime             @default(now())
     updatedAt  DateTime             @updatedAt
 
@@ -489,11 +497,41 @@ model BookingOrder {
     customer            User? @relation(fields: [customerId], references: [id])
     Segments            BookingSegment[]
     PaymentRequest      BookingPaymentRequest?
+    CashCollections     CashCollection[]
     createdAt           DateTime @default(now())
     updatedAt           DateTime @updatedAt
 
     @@index([businessId, status, createdAt])
     @@index([customerId, createdAt])
+}
+
+// Append-only audited evidence of cash collected (or later corrected) against
+// a booking order's cash-due-at-appointment balance. Rows are never updated
+// or deleted; corrections are recorded as a new ADJUSTMENT row referencing
+// the original COLLECTION row via adjustmentOfId.
+model CashCollection {
+    id             String             @id @default(cuid())
+    businessId     String
+    orderId        String
+    locationId     String
+    collectorId    String
+    kind           CashCollectionKind @default(COLLECTION)
+    amountCents    Int
+    idempotencyKey String
+    adjustmentOfId String?
+    note           String?            @db.Text
+    business       Business           @relation(fields: [businessId], references: [id], onDelete: Restrict)
+    order          BookingOrder       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+    location       Location           @relation(fields: [locationId], references: [id], onDelete: Restrict)
+    collector      BusinessMembership @relation(fields: [collectorId], references: [id], onDelete: Restrict)
+    adjustmentOf   CashCollection?    @relation("CashCollectionAdjustment", fields: [adjustmentOfId], references: [id], onDelete: Restrict)
+    Adjustments    CashCollection[]   @relation("CashCollectionAdjustment")
+    createdAt      DateTime           @default(now())
+
+    @@unique([businessId, idempotencyKey])
+    @@index([orderId, createdAt])
+    @@index([locationId, createdAt])
+    @@index([businessId, createdAt])
 }
 
 model BookingPaymentRequest {

@@ -20,7 +20,7 @@ type OverviewFacts = {
   servicesMissingQualifiedStaff: Array<{ offeringName: string; locationName: string }>
   pendingInvitations?: Array<{ id: string; expiresAt: Date }>
   operations?: { todayAppointments: number; pendingApprovals: number; staffScheduledToday: number; locationUtilization: Array<{ locationId: string; locationName: string; scheduledCapacity: number; bookedCapacity: number; percentage: number }> }
-  financeSummary?: { bookedRevenueCents: number; cashDueAtAppointmentCents: number; pendingOnlinePaymentCents: number; pendingOnlinePaymentRequests: number }
+  financeSummary?: { bookedRevenueCents: number; cashCollectedCents: number; cashDueAtAppointmentCents: number; pendingOnlinePaymentCents: number; pendingOnlinePaymentRequests: number }
 }
 export type BusinessOverviewContext = { business: { id: string; name: string; status: string }; membership: { id: string; role: BusinessRole }; availableLocations: OverviewLocation[] }
 
@@ -94,12 +94,13 @@ async function loadStaffFacts(context: BusinessOverviewContext, db: any, locatio
 async function loadAccountsFacts(context: BusinessOverviewContext, db: any, locationIds: string[], start: Date, end: Date): Promise<OverviewFacts> {
   const financeSegments = { some: { locationId: { in: locationIds }, startsAt: { gte: start, lt: end } }, none: { OR: [{ locationId: { notIn: locationIds } }, { startsAt: { lt: start } }, { startsAt: { gte: end } }] } }
   const eligibleOrders = { businessId: context.business.id, status: { in: BOOKED_ORDER_STATUSES }, Segments: financeSegments }
-  const [totals, pending, preview] = await Promise.all([
+  const [totals, pending, preview, cashCollected] = await Promise.all([
     db.bookingOrder.aggregate({ where: eligibleOrders, _sum: { subtotalCents: true, dueAtAppointmentCents: true }, _count: { id: true } }),
     db.bookingOrder.aggregate({ where: { ...eligibleOrders, PaymentRequest: { is: { status: 'PENDING' } } }, _sum: { dueOnlineCents: true }, _count: { id: true } }),
     db.bookingOrder.findMany({ where: eligibleOrders, select: { id: true, status: true, subtotalCents: true, dueAtAppointmentCents: true, dueOnlineCents: true, PaymentRequest: { select: { status: true } }, Segments: { where: { locationId: { in: locationIds }, startsAt: { gte: start, lt: end } }, select: { locationId: true, priceCents: true } } }, orderBy: { createdAt: 'desc' }, take: AGENDA_PREVIEW_LIMIT }),
+    db.cashCollection.aggregate({ where: { businessId: context.business.id, locationId: { in: locationIds }, createdAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
   ])
-  return { todaySegments: [], nextAssignedSegment: null, upcomingTimeOff: [], financeOrders: preview.map(mapFinanceOrder), missingHours: [], unassignedRequestedBookings: 0, servicesMissingQualifiedStaff: [], pendingInvitations: [], financeSummary: { bookedRevenueCents: totals._sum.subtotalCents ?? 0, cashDueAtAppointmentCents: totals._sum.dueAtAppointmentCents ?? 0, pendingOnlinePaymentCents: pending._sum.dueOnlineCents ?? 0, pendingOnlinePaymentRequests: typeof pending._count === 'number' ? pending._count : pending._count.id } }
+  return { todaySegments: [], nextAssignedSegment: null, upcomingTimeOff: [], financeOrders: preview.map(mapFinanceOrder), missingHours: [], unassignedRequestedBookings: 0, servicesMissingQualifiedStaff: [], pendingInvitations: [], financeSummary: { bookedRevenueCents: totals._sum.subtotalCents ?? 0, cashCollectedCents: cashCollected._sum.amountCents ?? 0, cashDueAtAppointmentCents: totals._sum.dueAtAppointmentCents ?? 0, pendingOnlinePaymentCents: pending._sum.dueOnlineCents ?? 0, pendingOnlinePaymentRequests: typeof pending._count === 'number' ? pending._count : pending._count.id } }
 }
 
 export async function loadBusinessOverviewFacts(context: BusinessOverviewContext, now: Date, db: any = prisma): Promise<OverviewFacts> {
@@ -139,6 +140,6 @@ export async function loadBusinessOverview(input: { actorId: string; now: Date }
   const locationIds = new Set(common.locationIds)
   const scopedBookedOrders = facts.financeOrders.filter((order) => BOOKED_ORDER_STATUSES.includes(order.status) && order.segments.length > 0 && order.segments.every((segment) => locationIds.has(segment.locationId)))
   const pendingOrders = scopedBookedOrders.filter((order) => order.paymentRequest?.status === 'PENDING')
-  const derivedFinance = { bookedRevenueCents: scopedBookedOrders.reduce((total, order) => total + order.subtotalCents, 0), cashDueAtAppointmentCents: scopedBookedOrders.reduce((total, order) => total + order.dueAtAppointmentCents, 0), pendingOnlinePaymentCents: pendingOrders.reduce((total, order) => total + order.dueOnlineCents, 0), pendingOnlinePaymentRequests: pendingOrders.length }
-  return { ...common, role: 'ACCOUNTS', ...(facts.financeSummary ?? derivedFinance), cashCollectedCents: 0, recentTransactions: scopedBookedOrders.slice(0, AGENDA_PREVIEW_LIMIT).map((order) => ({ id: order.id, amountCents: order.subtotalCents, cashDueCents: order.dueAtAppointmentCents, pendingOnlineCents: order.paymentRequest?.status === 'PENDING' ? order.dueOnlineCents : 0 })) }
+  const derivedFinance = { bookedRevenueCents: scopedBookedOrders.reduce((total, order) => total + order.subtotalCents, 0), cashCollectedCents: 0, cashDueAtAppointmentCents: scopedBookedOrders.reduce((total, order) => total + order.dueAtAppointmentCents, 0), pendingOnlinePaymentCents: pendingOrders.reduce((total, order) => total + order.dueOnlineCents, 0), pendingOnlinePaymentRequests: pendingOrders.length }
+  return { ...common, role: 'ACCOUNTS', ...(facts.financeSummary ?? derivedFinance), recentTransactions: scopedBookedOrders.slice(0, AGENDA_PREVIEW_LIMIT).map((order) => ({ id: order.id, amountCents: order.subtotalCents, cashDueCents: order.dueAtAppointmentCents, pendingOnlineCents: order.paymentRequest?.status === 'PENDING' ? order.dueOnlineCents : 0 })) }
 }

@@ -14,6 +14,7 @@ function repository() {
     businessInvitation: { findMany: vi.fn().mockResolvedValue([]) },
     staffTimeOff: { findMany: vi.fn().mockResolvedValue([]) },
     bookingOrder: { aggregate: vi.fn().mockResolvedValue({ _sum: { subtotalCents: 0, dueAtAppointmentCents: 0, dueOnlineCents: 0 }, _count: 0 }), findMany: vi.fn().mockResolvedValue([]) },
+    cashCollection: { aggregate: vi.fn().mockResolvedValue({ _sum: { amountCents: 0 } }) },
     location: { findMany: vi.fn().mockResolvedValue([]) },
     serviceOffering: { findMany: vi.fn().mockResolvedValue([]) },
   }
@@ -67,5 +68,15 @@ describe('business overview repository predicates', () => {
 
     const aggregateCall = db.bookingOrder.aggregate.mock.calls[0]?.[0]
     expect(aggregateCall.where.Segments.none).toEqual(expect.objectContaining({ OR: expect.arrayContaining([expect.objectContaining({ startsAt: { lt: new Date('2026-08-19T04:00:00.000Z') } }), expect.objectContaining({ startsAt: { gte: new Date('2026-08-20T04:00:00.000Z') } })]) }))
+  })
+
+  it('sums cash collected from append-only CashCollection evidence scoped to the business, authorized locations, and local day', async () => {
+    const db = repository()
+    await loadBusinessOverviewFacts(accountsContext, now, db)
+
+    expect(db.cashCollection.aggregate).toHaveBeenCalledWith({
+      where: { businessId: 'business-1', locationId: { in: ['assigned-location'] }, createdAt: { gte: new Date('2026-08-19T04:00:00.000Z'), lt: new Date('2026-08-20T04:00:00.000Z') } },
+      _sum: { amountCents: true },
+    })
   })
 })

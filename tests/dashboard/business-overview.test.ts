@@ -71,7 +71,7 @@ describe('loadBusinessOverview', () => {
     expect(model.upcomingTimeOff).toEqual([{ id: 'time-off-1', startsAt: new Date('2026-08-22T13:00:00.000Z'), endsAt: new Date('2026-08-22T17:00:00.000Z'), locationName: 'Castries', reason: 'Personal leave' }])
   })
 
-  it('uses scoped canonical finance values while cash collection is unavailable', async () => {
+  it('uses scoped canonical finance values, defaulting cash collected to zero when no repository summary is supplied', async () => {
     const model = await loadBusinessOverview({ actorId: 'accounts-1', now }, dependencies('ACCOUNTS', {
       financeOrders: [
         { id: 'scoped-order', status: 'CONFIRMED', subtotalCents: 12000, dueAtAppointmentCents: 9000, dueOnlineCents: 3000, paymentRequest: { status: 'PENDING' }, segments: [{ locationId: 'assigned-location', priceCents: 12000 }] },
@@ -88,5 +88,17 @@ describe('loadBusinessOverview', () => {
     expect(model.cashDueAtAppointmentCents).toBe(9000)
     expect(model.pendingOnlinePaymentCents).toBe(3000)
     expect(model.pendingOnlinePaymentRequests).toBe(1)
+  })
+
+  it('surfaces real cash collected from append-only CashCollection evidence supplied by the repository', async () => {
+    const model = await loadBusinessOverview({ actorId: 'accounts-1', now }, dependencies('ACCOUNTS', {
+      financeSummary: { bookedRevenueCents: 12000, cashCollectedCents: 5000, cashDueAtAppointmentCents: 9000, pendingOnlinePaymentCents: 3000, pendingOnlinePaymentRequests: 1 },
+    }))
+
+    expect(model.role).toBe('ACCOUNTS')
+    if (model.role !== 'ACCOUNTS') throw new Error('Expected accounts overview')
+    expect(model.cashCollectedCents).toBe(5000)
+    expect(model.bookedRevenueCents).toBe(12000)
+    expect(model.cashDueAtAppointmentCents).toBe(9000)
   })
 })
