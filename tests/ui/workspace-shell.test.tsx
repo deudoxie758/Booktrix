@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }))
 
 vi.mock('next-auth/react', () => ({ signOut }))
-vi.mock('next/navigation', () => ({ usePathname: () => '/business/calendar' }))
+const { usePathname } = vi.hoisted(() => ({ usePathname: vi.fn(() => '/business/calendar') }))
+vi.mock('next/navigation', () => ({ usePathname }))
 
 import { WorkspaceShell } from '@/components/shells/WorkspaceShell'
 
@@ -26,5 +27,13 @@ describe('WorkspaceShell', () => {
     expect(screen.getAllByRole('link', { name: 'Calendar' })).toHaveLength(2)
     expect(screen.getAllByRole('link', { name: /view marketplace/i })).toHaveLength(2)
     expect(screen.getAllByRole('link', { name: /my account/i })).toHaveLength(2)
+  })
+
+  it('marks nested business destinations as current without marking the overview for every page', () => {
+    usePathname.mockReturnValue('/business/calendar/appointment-1')
+    render(<WorkspaceShell title="Island Glow" role="OWNER"><div>Body</div></WorkspaceShell>)
+
+    expect(screen.getByRole('link', { name: 'Calendar' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current')
   })
 })

@@ -62,6 +62,7 @@ describe('loadBusinessOverview', () => {
       financeOrders: [
         { id: 'scoped-order', status: 'CONFIRMED', subtotalCents: 12000, dueAtAppointmentCents: 9000, dueOnlineCents: 3000, paymentRequest: { status: 'PENDING' }, segments: [{ locationId: 'assigned-location', priceCents: 12000 }] },
         { id: 'cancelled-order', status: 'CANCELLED', subtotalCents: 5000, dueAtAppointmentCents: 5000, dueOnlineCents: 0, paymentRequest: null, segments: [{ locationId: 'assigned-location', priceCents: 5000 }] },
+        { id: 'partially-cancelled-order', status: 'PARTIALLY_CANCELLED', subtotalCents: 7000, dueAtAppointmentCents: 7000, dueOnlineCents: 0, paymentRequest: null, segments: [{ locationId: 'assigned-location', priceCents: 7000 }] },
         { id: 'outside-scope-order', status: 'CONFIRMED', subtotalCents: 9000, dueAtAppointmentCents: 9000, dueOnlineCents: 0, paymentRequest: null, segments: [{ locationId: 'other-location', priceCents: 9000 }] },
       ],
     }))

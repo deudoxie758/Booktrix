@@ -12,7 +12,10 @@ type NavigationProps = { navigation: WorkspaceNavItem[]; role: BusinessRole }
 function WorkspaceLinks({ navigation }: { navigation: WorkspaceNavItem[] }) {
   const pathname = usePathname()
 
-  return <>{navigation.map((item) => <Link key={item.href} href={item.href} aria-current={pathname === item.href ? 'page' : undefined} className="whitespace-nowrap rounded-xl px-3 py-2.5 text-sm text-cream-100 hover:bg-white/10 hover:text-white">{item.label}</Link>)}</>
+  return <>{navigation.map((item) => {
+    const current = item.href === '/business' ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`)
+    return <Link key={item.href} href={item.href} aria-current={current ? 'page' : undefined} className="whitespace-nowrap rounded-xl px-3 py-2.5 text-sm text-cream-100 hover:bg-white/10 hover:text-white">{item.label}</Link>
+  })}</>
 }
 
 function WorkspaceUtilities() {

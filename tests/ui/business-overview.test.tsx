@@ -33,10 +33,16 @@ describe('WorkspaceOverview', () => {
 
   it('shows staff the locations where their assigned work is scoped', () => {
     render(<WorkspaceOverview overview={{
-      role: 'STAFF', business: { id: 'business-1', name: 'Island Glow', status: 'PUBLISHED' }, locations: [{ id: 'location-1', name: 'Castries', timezone: 'America/St_Lucia' }], locationIds: ['location-1'], alerts: [], nextAppointment: null, todaySchedule: [], upcomingTimeOff: [],
+      role: 'STAFF', business: { id: 'business-1', name: 'Island Glow', status: 'PUBLISHED' }, locations: [{ id: 'location-1', name: 'Castries', timezone: 'America/St_Lucia' }], locationIds: ['location-1'], alerts: [], nextAppointment: { id: 'next-1', startsAt: new Date('2026-08-19T15:00:00Z'), endsAt: new Date('2026-08-19T16:00:00Z'), status: 'CONFIRMED', offeringName: 'Glow facial', customerName: 'Kai Joseph', locationName: 'Castries' }, todaySchedule: [{ id: 'today-1', startsAt: new Date('2026-08-19T17:00:00Z'), endsAt: new Date('2026-08-19T18:00:00Z'), status: 'CONFIRMED', offeringName: 'Massage', customerName: 'Asha James', locationName: 'Castries' }], upcomingTimeOff: [{ id: 'time-off-1', startsAt: new Date('2026-08-22T13:00:00Z'), endsAt: new Date('2026-08-22T17:00:00Z'), locationName: 'Castries', reason: 'Personal leave' }],
     }} />)
 
     expect(screen.getByText(/assigned locations/i)).toBeVisible()
-    expect(screen.getByText('Castries')).toBeVisible()
+    expect(screen.getAllByText('Castries')).not.toHaveLength(0)
+    expect(screen.getByText(/kai joseph/i)).toBeVisible()
+    expect(screen.getByText(/asha james/i)).toBeVisible()
+    expect(screen.getByText(/personal leave/i)).toBeVisible()
+    expect(screen.getAllByText(/19 Aug 2026/)).not.toHaveLength(0)
+    expect(screen.getAllByText(/22 Aug 2026/)).not.toHaveLength(0)
+    expect(screen.getAllByText(/11:00/)).not.toHaveLength(0)
   })
 })
