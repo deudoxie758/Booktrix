@@ -2,11 +2,12 @@ import { createHash, randomBytes } from 'node:crypto'
 import type { BusinessRole, Prisma, Role } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { canManageRequestedRole } from './permissions'
+import { createPrismaScopeLoader, teamError, validateTeamScope, type QualificationInput } from './scope'
 
 const invitationLifetimeMs = 7 * 24 * 60 * 60 * 1000
 const serializableTransaction = { isolationLevel: 'Serializable' as const }
 
-export type InvitationQualificationInput = { offeringId: string; locationId: string }
+export type InvitationQualificationInput = QualificationInput
 
 export type InvitationRecord = {
   id: string
@@ -76,8 +77,6 @@ export type InvitationTokenResult = {
   expiresAt: Date
 }
 
-const teamError = (code: string) => Object.assign(new Error(code), { code })
-
 export function normalizeInvitationEmail(value: string) {
   const email = value.trim().toLowerCase()
   if (!email || email.length > 191 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw teamError('INVITATION_EMAIL_INVALID')
@@ -100,19 +99,6 @@ function normalizeName(value: string) {
   return name
 }
 
-function unique(values: string[]) {
-  return Array.from(new Set(values.filter(Boolean)))
-}
-
-function uniqueQualifications(values: InvitationQualificationInput[]) {
-  const qualifications = new Map<string, InvitationQualificationInput>()
-  for (const value of values) {
-    if (!value.offeringId || !value.locationId) throw teamError('INVITATION_QUALIFICATION_DENIED')
-    qualifications.set(`${value.offeringId}:${value.locationId}`, value)
-  }
-  return Array.from(qualifications.values())
-}
-
 function activeInvitationKey(businessId: string, normalizedEmail: string) {
   return hashInvitationToken(`${businessId}:${normalizedEmail}`)
 }
@@ -129,21 +115,14 @@ async function requireActor(transaction: InvitationTransaction, input: { actorId
   return actor
 }
 
-async function validateScope(
+const invitationScopeErrors = { qualificationDenied: 'INVITATION_QUALIFICATION_DENIED', locationDenied: 'INVITATION_LOCATION_DENIED' }
+
+function validateScope(
   transaction: InvitationTransaction,
   input: { businessId: string; role: BusinessRole; locationIds: string[]; qualifications: InvitationQualificationInput[] },
   actor: TeamActorAccess,
 ) {
-  const locationIds = unique(input.locationIds)
-  const qualifications = uniqueQualifications(input.qualifications)
-  if (input.role !== 'STAFF' && qualifications.length) throw teamError('INVITATION_QUALIFICATION_DENIED')
-  if (qualifications.some(({ locationId }) => !locationIds.includes(locationId))) throw teamError('INVITATION_QUALIFICATION_DENIED')
-  const valid = await transaction.loadValidScope({ businessId: input.businessId, locationIds, qualifications })
-  if (valid.locationIds.length !== locationIds.length || locationIds.some((locationId) => !valid.locationIds.includes(locationId))) throw teamError('INVITATION_LOCATION_DENIED')
-  if (actor.role === 'MANAGER' && locationIds.some((locationId) => !actor.assignedLocationIds.includes(locationId))) throw teamError('INVITATION_LOCATION_DENIED')
-  const validQualificationKeys = new Set(valid.qualificationKeys)
-  if (qualifications.some(({ offeringId, locationId }) => !validQualificationKeys.has(`${offeringId}:${locationId}`))) throw teamError('INVITATION_QUALIFICATION_DENIED')
-  return { locationIds, qualifications }
+  return validateTeamScope(transaction, input, actor, invitationScopeErrors)
 }
 
 function assertPending(invitation: InvitationRecord, now: Date, allowExpired: boolean) {
@@ -189,15 +168,15 @@ export async function createInvitation(input: CreateInvitationInput, repository:
   return { id: invitation.id, email: invitation.normalizedEmail, role: invitation.role, token, expiresAt: invitation.expiresAt }
 }
 
-export async function resendInvitation(input: { actorId: string; invitationId: string; now?: Date }, repository: InvitationRepository = defaultRepository): Promise<InvitationTokenResult> {
+export async function resendInvitation(input: { actorId: string; businessId: string; invitationId: string; now?: Date }, repository: InvitationRepository = defaultRepository): Promise<InvitationTokenResult> {
   const now = input.now ?? new Date()
   const token = randomBytes(32).toString('hex')
   const tokenHash = hashInvitationToken(token)
   const expiresAt = new Date(now.getTime() + invitationLifetimeMs)
   const invitation = await repository.transaction(async (transaction) => {
     const current = await transaction.getInvitationById({ invitationId: input.invitationId })
-    if (!current) throw teamError('INVITATION_NOT_FOUND')
-    const actor = await requireActor(transaction, { actorId: input.actorId, businessId: current.businessId })
+    if (!current || current.businessId !== input.businessId) throw teamError('INVITATION_NOT_FOUND')
+    const actor = await requireActor(transaction, { actorId: input.actorId, businessId: input.businessId })
     if (!canManageRequestedRole({ actorRole: actor.role, requestedRole: current.role })) throw teamError('INVITATION_ROLE_DENIED')
     assertPending(current, now, true)
     await validateScope(transaction, current, actor)
@@ -208,12 +187,12 @@ export async function resendInvitation(input: { actorId: string; invitationId: s
   return { id: invitation.id, email: invitation.normalizedEmail, role: invitation.role, token, expiresAt: invitation.expiresAt }
 }
 
-export async function revokeInvitation(input: { actorId: string; invitationId: string; now?: Date }, repository: InvitationRepository = defaultRepository) {
+export async function revokeInvitation(input: { actorId: string; businessId: string; invitationId: string; now?: Date }, repository: InvitationRepository = defaultRepository) {
   const now = input.now ?? new Date()
   return repository.transaction(async (transaction) => {
     const current = await transaction.getInvitationById({ invitationId: input.invitationId })
-    if (!current) throw teamError('INVITATION_NOT_FOUND')
-    const actor = await requireActor(transaction, { actorId: input.actorId, businessId: current.businessId })
+    if (!current || current.businessId !== input.businessId) throw teamError('INVITATION_NOT_FOUND')
+    const actor = await requireActor(transaction, { actorId: input.actorId, businessId: input.businessId })
     if (!canManageRequestedRole({ actorRole: actor.role, requestedRole: current.role })) throw teamError('INVITATION_ROLE_DENIED')
     assertPending(current, now, true)
     await validateScope(transaction, current, actor)
@@ -282,13 +261,7 @@ export function createPrismaInvitationRepository(client: InvitationRepositoryCli
           const row = await transaction.businessInvitation.findFirst({ where: { businessId, normalizedEmail, acceptedAt: null, revokedAt: null }, include: { Locations: true, Qualifications: true }, orderBy: { createdAt: 'desc' } })
           return row ? mapInvitation(row) : null
         },
-        async loadValidScope({ businessId, locationIds, qualifications }) {
-          const [locations, targets] = await Promise.all([
-            transaction.location.findMany({ where: { id: { in: locationIds }, businessId, isActive: true }, select: { id: true } }),
-            qualifications.length ? transaction.serviceLocation.findMany({ where: { active: true, OR: qualifications.map(({ offeringId, locationId }) => ({ offeringId, locationId })), offering: { businessId, active: true }, location: { businessId, isActive: true } }, select: { offeringId: true, locationId: true } }) : Promise.resolve([]),
-          ])
-          return { locationIds: locations.map(({ id }) => id), qualificationKeys: targets.map(({ offeringId, locationId }) => `${offeringId}:${locationId}`) }
-        },
+        loadValidScope: createPrismaScopeLoader(transaction),
         async closeExpiredInvitation({ invitationId, now }) {
           await transaction.businessInvitation.update({ where: { id: invitationId }, data: { revokedAt: now, activeKey: null } })
         },

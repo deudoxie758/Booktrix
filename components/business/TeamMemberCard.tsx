@@ -41,7 +41,7 @@ export function TeamMemberCard({ actorRole, member, locations, qualificationOpti
     if (!nextActive && !window.confirm(`Deactivate ${member.name}? Historical assignments will be retained.`)) return
     const formData = new FormData()
     formData.set('membershipId', member.id)
-    formData.set('role', role)
+    formData.set('role', member.role)
     formData.set('active', String(nextActive))
     for (const location of member.locations) formData.append('locationIds', location.id)
     for (const qualification of member.qualifications) formData.append('qualifications', `${qualification.offeringId}|${qualification.locationId}`)

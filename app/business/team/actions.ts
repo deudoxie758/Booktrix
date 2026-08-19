@@ -73,7 +73,7 @@ export async function createInvitationAction(formData: FormData): Promise<TeamAc
 export async function resendInvitationAction(formData: FormData): Promise<TeamActionResult> {
   const context = await teamContext()
   try {
-    const result = await resendInvitation({ actorId: context.actor.id, invitationId: String(formData.get('invitationId') ?? '') })
+    const result = await resendInvitation({ actorId: context.actor.id, businessId: context.business.id, invitationId: String(formData.get('invitationId') ?? '') })
     refreshTeamConsumers()
     return { ok: true, invitationId: result.id, invitationUrl: `/invitations/${result.token}` }
   } catch (error) {
@@ -84,7 +84,7 @@ export async function resendInvitationAction(formData: FormData): Promise<TeamAc
 export async function revokeInvitationAction(formData: FormData): Promise<TeamActionResult> {
   const context = await teamContext()
   try {
-    const result = await revokeInvitation({ actorId: context.actor.id, invitationId: String(formData.get('invitationId') ?? '') })
+    const result = await revokeInvitation({ actorId: context.actor.id, businessId: context.business.id, invitationId: String(formData.get('invitationId') ?? '') })
     refreshTeamConsumers()
     return { ok: true, invitationId: result.id }
   } catch (error) {

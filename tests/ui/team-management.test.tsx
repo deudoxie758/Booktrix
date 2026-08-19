@@ -105,4 +105,24 @@ describe('member access cards', () => {
     expect(screen.getByText('Inactive')).toBeVisible()
     expect(screen.getByRole('button', { name: /reactivate asha james/i })).toBeVisible()
   })
+
+  it('submits the member\'s persisted role, not an unsaved edit-access selection, when toggling active status', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const action = vi.fn().mockResolvedValue({ ok: true, membershipId: 'staff-membership' })
+    render(<TeamMemberCard
+      actorRole="OWNER"
+      member={{ id: 'staff-membership', name: 'Asha James', email: 'asha@example.com', role: 'STAFF', active: true, locations: [{ id: 'castries', name: 'Castries' }], qualifications: [] }}
+      locations={locations}
+      qualificationOptions={qualificationOptions}
+      action={action}
+    />)
+
+    fireEvent.change(screen.getByLabelText(/role/i), { target: { value: 'MANAGER' } })
+    fireEvent.click(screen.getByRole('button', { name: /deactivate asha james/i }))
+
+    await waitFor(() => expect(action).toHaveBeenCalledTimes(1))
+    const submitted = action.mock.calls[0][0] as FormData
+    expect(submitted.get('role')).toBe('STAFF')
+    expect(submitted.get('active')).toBe('false')
+  })
 })

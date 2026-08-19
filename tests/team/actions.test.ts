@@ -67,7 +67,7 @@ describe('team server actions', () => {
     const result = await action(formData)
 
     expect(mocks.requireWorkspaceRole).toHaveBeenCalledWith(['OWNER', 'MANAGER'])
-    expect(mutation).toHaveBeenCalledWith({ actorId: 'owner', invitationId: 'invitation-1' })
+    expect(mutation).toHaveBeenCalledWith({ actorId: 'owner', businessId: 'business-a', invitationId: 'invitation-1' })
     expect(result.ok).toBe(true)
     expect(result.ok && Boolean(result.invitationUrl)).toBe(hasUrl)
     expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual(refreshedPaths)

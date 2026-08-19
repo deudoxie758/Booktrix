@@ -2,9 +2,9 @@ import type { BusinessRole, Prisma, Role } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { canManageMemberRole, canManageRequestedRole } from './permissions'
 import type { InvitationQualificationInput } from './invitations'
+import { createPrismaScopeLoader, teamError, validateTeamScope } from './scope'
 
 const serializableTransaction = { isolationLevel: 'Serializable' as const }
-const teamError = (code: string) => Object.assign(new Error(code), { code })
 
 type TeamActorAccess = {
   membershipId: string
@@ -53,36 +53,16 @@ function auditRole(role: BusinessRole): Role {
   return 'USER'
 }
 
-function unique(values: string[]) {
-  return Array.from(new Set(values.filter(Boolean)))
-}
-
-function uniqueQualifications(values: InvitationQualificationInput[]) {
-  const result = new Map<string, InvitationQualificationInput>()
-  for (const value of values) {
-    if (!value.offeringId || !value.locationId) throw teamError('TEAM_QUALIFICATION_DENIED')
-    result.set(`${value.offeringId}:${value.locationId}`, value)
-  }
-  return Array.from(result.values())
-}
-
 function canSetRole(actorRole: BusinessRole, targetRole: BusinessRole, requestedRole: BusinessRole) {
   if (!canManageMemberRole({ actorRole, targetRole })) return false
   if (actorRole === 'OWNER' && targetRole === 'OWNER' && requestedRole === 'OWNER') return true
   return canManageRequestedRole({ actorRole, requestedRole })
 }
 
-async function validateScope(transaction: TeamManagementTransaction, input: UpdateMemberAccessInput, actor: TeamActorAccess) {
-  const locationIds = unique(input.locationIds)
-  const qualifications = uniqueQualifications(input.qualifications)
-  if (input.role !== 'STAFF' && qualifications.length) throw teamError('TEAM_QUALIFICATION_DENIED')
-  if (qualifications.some(({ locationId }) => !locationIds.includes(locationId))) throw teamError('TEAM_QUALIFICATION_DENIED')
-  const valid = await transaction.loadValidScope({ businessId: input.businessId, locationIds, qualifications })
-  if (valid.locationIds.length !== locationIds.length || locationIds.some((locationId) => !valid.locationIds.includes(locationId))) throw teamError('TEAM_LOCATION_DENIED')
-  if (actor.role === 'MANAGER' && locationIds.some((locationId) => !actor.assignedLocationIds.includes(locationId))) throw teamError('TEAM_LOCATION_DENIED')
-  const validQualifications = new Set(valid.qualificationKeys)
-  if (qualifications.some(({ offeringId, locationId }) => !validQualifications.has(`${offeringId}:${locationId}`))) throw teamError('TEAM_QUALIFICATION_DENIED')
-  return { locationIds, qualifications }
+const managementScopeErrors = { qualificationDenied: 'TEAM_QUALIFICATION_DENIED', locationDenied: 'TEAM_LOCATION_DENIED' }
+
+function validateScope(transaction: TeamManagementTransaction, input: UpdateMemberAccessInput, actor: TeamActorAccess) {
+  return validateTeamScope(transaction, input, actor, managementScopeErrors)
 }
 
 export async function updateMemberAccess(input: UpdateMemberAccessInput, repository: TeamManagementRepository = defaultRepository) {
@@ -140,13 +120,7 @@ export function createPrismaTeamManagementRepository(client: TeamManagementRepos
           return row ? mapMember(row) : null
         },
         countActiveOwners: ({ businessId }) => transaction.businessMembership.count({ where: { businessId, role: 'OWNER', active: true } }),
-        async loadValidScope({ businessId, locationIds, qualifications }) {
-          const [locations, targets] = await Promise.all([
-            transaction.location.findMany({ where: { id: { in: locationIds }, businessId, isActive: true }, select: { id: true } }),
-            qualifications.length ? transaction.serviceLocation.findMany({ where: { active: true, OR: qualifications.map(({ offeringId, locationId }) => ({ offeringId, locationId })), offering: { businessId, active: true }, location: { businessId, isActive: true } }, select: { offeringId: true, locationId: true } }) : Promise.resolve([]),
-          ])
-          return { locationIds: locations.map(({ id }) => id), qualificationKeys: targets.map(({ offeringId, locationId }) => `${offeringId}:${locationId}`) }
-        },
+        loadValidScope: createPrismaScopeLoader(transaction),
         async setMemberAccess({ membershipId, role, active, locationIds, qualifications, preserveScope }) {
           await transaction.businessMembership.update({ where: { id: membershipId }, data: { role, active } })
           if (!preserveScope) {

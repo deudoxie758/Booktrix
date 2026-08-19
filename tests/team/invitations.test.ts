@@ -36,6 +36,7 @@ function fixture() {
     actors: new Map([
       ['owner', { membershipId: 'owner-membership', businessId: 'business-a', role: 'OWNER' as Role, active: true, assignedLocationIds: [] }],
       ['manager', { membershipId: 'manager-membership', businessId: 'business-a', role: 'MANAGER' as Role, active: true, assignedLocationIds: ['castries'] }],
+      ['owner-b', { membershipId: 'owner-b-membership', businessId: 'business-b', role: 'OWNER' as Role, active: true, assignedLocationIds: [] }],
     ]),
     users: new Map([
       ['owner', { id: 'owner', email: 'owner@example.com' }],
@@ -192,7 +193,7 @@ describe('business invitation lifecycle', () => {
     const { repository } = fixture()
     const invitation = await createInvitation({ ...staffInput, locationIds: ['soufriere'], qualifications: [], now: dayOne }, repository)
 
-    await expect(revokeInvitation({ actorId: 'manager', invitationId: invitation.id, now: dayTwo }, repository)).rejects.toThrow('INVITATION_LOCATION_DENIED')
+    await expect(revokeInvitation({ actorId: 'manager', businessId: 'business-a', invitationId: invitation.id, now: dayTwo }, repository)).rejects.toThrow('INVITATION_LOCATION_DENIED')
   })
 
   it('rejects cross-business locations and service qualifications', async () => {
@@ -207,7 +208,7 @@ describe('business invitation lifecycle', () => {
     const { state, repository } = fixture()
     const first = await createInvitation({ ...staffInput, now: dayOne }, repository)
 
-    const resent = await resendInvitation({ actorId: 'owner', invitationId: first.id, now: dayTwo }, repository)
+    const resent = await resendInvitation({ actorId: 'owner', businessId: 'business-a', invitationId: first.id, now: dayTwo }, repository)
 
     expect(resent.token).not.toBe(first.token)
     expect(resent.expiresAt).toEqual(sevenDaysAfter(dayTwo))
@@ -222,7 +223,7 @@ describe('business invitation lifecycle', () => {
 
     const revoked = fixture()
     const toRevoke = await createInvitation({ ...staffInput, now: dayOne }, revoked.repository)
-    await revokeInvitation({ actorId: 'owner', invitationId: toRevoke.id, now: dayTwo }, revoked.repository)
+    await revokeInvitation({ actorId: 'owner', businessId: 'business-a', invitationId: toRevoke.id, now: dayTwo }, revoked.repository)
     await expect(acceptInvitation({ token: toRevoke.token, actorId: 'invitee', now: dayTwo }, revoked.repository)).rejects.toThrow('INVITATION_REVOKED')
 
     const accepted = fixture()
@@ -277,5 +278,14 @@ describe('business invitation lifecycle', () => {
 
     await expect(createInvitation({ ...staffInput, actorId: 'manager', now: dayOne }, repository)).rejects.toThrow('TEAM_ACCESS_DENIED')
     expect(state.invitations.size).toBe(0)
+  })
+
+  it('denies resend/revoke when the caller acts from an active business other than the invitation\'s own', async () => {
+    const { state, repository } = fixture()
+    const invitation = await createInvitation({ ...staffInput, now: dayOne }, repository)
+
+    await expect(resendInvitation({ actorId: 'owner-b', businessId: 'business-b', invitationId: invitation.id, now: dayTwo }, repository)).rejects.toThrow('INVITATION_NOT_FOUND')
+    await expect(revokeInvitation({ actorId: 'owner-b', businessId: 'business-b', invitationId: invitation.id, now: dayTwo }, repository)).rejects.toThrow('INVITATION_NOT_FOUND')
+    expect(state.invitations.get(invitation.id)).toMatchObject({ acceptedAt: null, revokedAt: null })
   })
 })
