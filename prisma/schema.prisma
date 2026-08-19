@@ -132,6 +132,7 @@ model User {
     ReviewedBusinessApplications BusinessApplication[] @relation("BusinessReviewer")
     BookingOrders BookingOrder[]
     BookingHolds BookingHold[]
+    InvitedBusinessInvitations BusinessInvitation[] @relation("BusinessInvitationInviter")
     createdAt      DateTime  @default(now())
     updatedAt      DateTime  @updatedAt
 }
@@ -152,6 +153,7 @@ model Business {
     BookingHolds BookingHold[]
     BookingOrders BookingOrder[]
     SchedulingLocks SchedulingLock[]
+    Invitations BusinessInvitation[]
     createdAt       DateTime             @default(now())
     updatedAt       DateTime             @updatedAt
 }
@@ -177,6 +179,8 @@ model Location {
     HoldSegments BookingHoldSegment[]
     BookingSegments BookingSegment[]
     SchedulingLocks SchedulingLock[]
+    InvitationLocations BusinessInvitationLocation[]
+    InvitationQualifications BusinessInvitationQualification[]
     createdAt   DateTime             @default(now())
     updatedAt   DateTime             @updatedAt
 
@@ -203,6 +207,55 @@ model BusinessMembership {
 
     @@unique([businessId, userId])
     @@index([userId, active])
+}
+
+model BusinessInvitation {
+    id              String       @id @default(cuid())
+    businessId      String
+    normalizedEmail String
+    invitedName     String
+    role            BusinessRole
+    tokenHash       String       @unique @db.Char(64)
+    expiresAt       DateTime
+    acceptedAt      DateTime?
+    revokedAt       DateTime?
+    inviterId       String
+    activeKey       String?      @unique
+    business        Business     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+    inviter         User         @relation("BusinessInvitationInviter", fields: [inviterId], references: [id], onDelete: Restrict)
+    Locations       BusinessInvitationLocation[]
+    Qualifications  BusinessInvitationQualification[]
+    createdAt       DateTime     @default(now())
+    updatedAt       DateTime     @updatedAt
+
+    @@index([businessId, normalizedEmail, acceptedAt, revokedAt], map: "BusinessInvitation_business_email_state_idx")
+    @@index([businessId, expiresAt, acceptedAt, revokedAt], map: "BusinessInvitation_business_expiry_state_idx")
+    @@index([inviterId, createdAt])
+}
+
+model BusinessInvitationLocation {
+    invitationId String
+    locationId   String
+    invitation   BusinessInvitation @relation(fields: [invitationId], references: [id], onDelete: Restrict)
+    location     Location           @relation(fields: [locationId], references: [id], onDelete: Restrict)
+    createdAt    DateTime           @default(now())
+
+    @@id([invitationId, locationId])
+    @@index([locationId])
+}
+
+model BusinessInvitationQualification {
+    invitationId String
+    offeringId   String
+    locationId   String
+    invitation   BusinessInvitation @relation(fields: [invitationId], references: [id], onDelete: Restrict)
+    offering     ServiceOffering    @relation(fields: [offeringId], references: [id], onDelete: Restrict)
+    location     Location           @relation(fields: [locationId], references: [id], onDelete: Restrict)
+    createdAt    DateTime           @default(now())
+
+    @@id([invitationId, offeringId, locationId])
+    @@index([offeringId, locationId])
+    @@index([locationId])
 }
 
 model LocationAssignment {
@@ -278,6 +331,7 @@ model ServiceOffering {
     Qualifications      StaffQualification[]
     HoldSegments        BookingHoldSegment[]
     BookingSegments     BookingSegment[]
+    InvitationQualifications BusinessInvitationQualification[]
     createdAt           DateTime         @default(now())
     updatedAt           DateTime         @updatedAt
 

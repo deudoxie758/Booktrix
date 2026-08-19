@@ -42,6 +42,20 @@ describe('loadBusinessOverview', () => {
     expect(model.alerts.map((alert) => alert.kind)).toEqual(['MISSING_HOURS', 'UNASSIGNED_BOOKING', 'UNQUALIFIED_SERVICE'])
   })
 
+  it('adds pending and soon-expiring invitation alerts after invitation persistence exists', async () => {
+    const model = await loadBusinessOverview({ actorId: 'owner-1', now }, dependencies('OWNER', {
+      pendingInvitations: [
+        { id: 'expiring', expiresAt: new Date('2026-08-20T10:00:00.000Z') },
+        { id: 'later', expiresAt: new Date('2026-08-25T10:00:00.000Z') },
+      ],
+    }))
+
+    expect(model.alerts).toEqual(expect.arrayContaining([
+      { kind: 'PENDING_INVITATION', message: '2 team invitations are pending.' },
+      { kind: 'EXPIRING_INVITATION', message: '1 team invitation expires within 48 hours.' },
+    ]))
+  })
+
   it('builds the staff member’s next assignment and upcoming time off', async () => {
     const nextAssignedSegment = { ...todaySegments[0], membershipId: 'staff-membership' }
     const model = await loadBusinessOverview({ actorId: 'staff-1', now }, dependencies('STAFF', {

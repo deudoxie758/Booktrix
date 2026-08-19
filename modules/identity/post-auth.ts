@@ -42,11 +42,11 @@ export function buildPostAuthRedirectUrl(callbackUrl: string | null | undefined,
 
 function isRevisedPath(pathname: string) {
 	if (obsoletePaths.some((path) => pathMatches(pathname, path))) return false
-	return pathname === '/' || ['/search', '/s', '/book', '/profile', '/for-business', '/business', '/admin'].some((path) => pathMatches(pathname, path))
+	return pathname === '/' || ['/search', '/s', '/book', '/profile', '/for-business', '/invitations', '/business', '/admin'].some((path) => pathMatches(pathname, path))
 }
 
 function canUsePostAuthPath(pathname: string, { platformRole, memberships, selectedMembership }: PostAuthIdentity) {
-	if (pathname === '/' || ['/search', '/s', '/book', '/profile', '/for-business'].some((path) => pathMatches(pathname, path))) return true
+	if (pathname === '/' || ['/search', '/s', '/book', '/profile', '/for-business', '/invitations'].some((path) => pathMatches(pathname, path))) return true
 	if (pathMatches(pathname, '/admin')) return platformRole === 'ADMIN'
 
 	const role = selectedWorkspaceRole({ memberships, selectedMembership })

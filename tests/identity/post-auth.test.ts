@@ -5,6 +5,7 @@ import {
 	resolvePostAuthDestination,
 	resolveSafePostAuthDestination,
 } from '@/modules/identity/post-auth'
+import { invitationAuthenticationUrls } from '@/modules/team/invitations'
 
 describe('post-auth routing', () => {
 	it('sends a new customer to their account hub', () => {
@@ -53,6 +54,18 @@ describe('post-auth routing', () => {
 		baseUrl: 'https://booktrix.test',
 		fallback: '/profile/bookings',
 	})).toBe('/book/bliss?hold=abc')
+	})
+
+	it('preserves an invitation callback for existing and newly created accounts', () => {
+		expect(resolveSafePostAuthDestination({
+			callbackUrl: '/invitations/one-time-token',
+			baseUrl: 'https://booktrix.test',
+			fallback: '/profile',
+		})).toBe('/invitations/one-time-token')
+		expect(invitationAuthenticationUrls('one-time-token')).toEqual({
+			signIn: '/auth/sign-in?callbackUrl=%2Finvitations%2Fone-time-token',
+			signUp: '/auth/signup?callbackUrl=%2Finvitations%2Fone-time-token',
+		})
 	})
 
 	it('falls back instead of following an external callback URL', () => {

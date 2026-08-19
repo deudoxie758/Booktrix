@@ -5,11 +5,13 @@ const now = new Date('2026-08-19T14:00:00.000Z')
 const staffContext = { business: { id: 'business-1', name: 'Island Glow', status: 'PUBLISHED' }, membership: { id: 'staff-membership', role: 'STAFF' as const }, availableLocations: [{ id: 'assigned-location', name: 'Castries', timezone: 'America/St_Lucia' }] }
 const accountsContext = { ...staffContext, membership: { id: 'accounts-membership', role: 'ACCOUNTS' as const } }
 const ownerContext = { ...staffContext, membership: { id: 'owner-membership', role: 'OWNER' as const } }
+const managerContext = { ...staffContext, membership: { id: 'manager-membership', role: 'MANAGER' as const } }
 
 function repository() {
   return {
     bookingSegment: { count: vi.fn().mockResolvedValue(0), findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue(null), groupBy: vi.fn().mockResolvedValue([]) },
     businessMembership: { count: vi.fn().mockResolvedValue(0) },
+    businessInvitation: { findMany: vi.fn().mockResolvedValue([]) },
     staffTimeOff: { findMany: vi.fn().mockResolvedValue([]) },
     bookingOrder: { aggregate: vi.fn().mockResolvedValue({ _sum: { subtotalCents: 0, dueAtAppointmentCents: 0, dueOnlineCents: 0 }, _count: 0 }), findMany: vi.fn().mockResolvedValue([]) },
     location: { findMany: vi.fn().mockResolvedValue([]) },
@@ -44,6 +46,14 @@ describe('business overview repository predicates', () => {
 
     expect(db.bookingSegment.count).toHaveBeenCalled()
     expect(db.bookingSegment.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 6 }))
+    expect(db.businessInvitation.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { businessId: 'business-1', acceptedAt: null, revokedAt: null, expiresAt: { gt: now } }, select: { id: true, expiresAt: true } }))
+  })
+
+  it('limits Manager invitation alerts to Staff invitations inside assigned locations', async () => {
+    const db = repository()
+    await loadBusinessOverviewFacts(managerContext, now, db)
+
+    expect(db.businessInvitation.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ businessId: 'business-1', role: 'STAFF', Locations: { none: { locationId: { notIn: ['assigned-location'] } } } }) }))
   })
 
   it('converts Saint Lucia midnight boundaries to UTC without including either neighboring local day', () => {
