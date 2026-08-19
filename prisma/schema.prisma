@@ -147,6 +147,9 @@ model Business {
     name            String
     slug            String               @unique
     status          BusinessStatus       @default(APPLICATION)
+    description     String?              @db.Text
+    phone           String?
+    email           String?
     defaultCurrency String               @default("XCD")
     coverImageUrl   String?
     legacySpaId     String?              @unique
@@ -154,6 +157,7 @@ model Business {
     Locations       Location[]
     Applications    BusinessApplication[]
     Setup           BusinessSetup?
+    Policy          BusinessPolicy?
     ServiceOfferings ServiceOffering[]
     BookingHolds BookingHold[]
     BookingOrders BookingOrder[]
@@ -162,6 +166,28 @@ model Business {
     CashCollections CashCollection[]
     createdAt       DateTime             @default(now())
     updatedAt       DateTime             @updatedAt
+}
+
+// One-to-one booking-policy and storefront-publication defaults per business.
+// Existing businesses receive a safe-default row via a forward-only backfill
+// migration. Saving new defaults here never rewrites existing ServiceOffering
+// confirmation/buffer/cancellation-lead values or historical bookings — those
+// remain the canonical per-offering record.
+model BusinessPolicy {
+    businessId                String           @id
+    business                  Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+    currency                  String           @default("XCD")
+    timezone                  String           @default("America/St_Lucia")
+    defaultConfirmationMode   ConfirmationMode @default(AUTOMATIC)
+    minimumNoticeMinutes      Int              @default(60)
+    maximumAdvanceBookingDays Int              @default(90)
+    defaultPreparationMinutes Int              @default(0)
+    defaultCleanupMinutes     Int              @default(0)
+    cancellationNoticeHours   Int              @default(24)
+    reschedulingNoticeHours   Int              @default(24)
+    cancellationPolicyText    String?          @db.Text
+    createdAt                 DateTime         @default(now())
+    updatedAt                 DateTime         @updatedAt
 }
 
 model Location {

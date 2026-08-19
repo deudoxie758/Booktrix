@@ -24,7 +24,7 @@ type OverviewFacts = {
 }
 export type BusinessOverviewContext = { business: { id: string; name: string; status: string }; membership: { id: string; role: BusinessRole }; availableLocations: OverviewLocation[] }
 
-export type OverviewAlert = { kind: 'MISSING_HOURS' | 'UNASSIGNED_BOOKING' | 'UNQUALIFIED_SERVICE' | 'PENDING_INVITATION' | 'EXPIRING_INVITATION'; message: string }
+export type OverviewAlert = { kind: 'MISSING_HOURS' | 'UNASSIGNED_BOOKING' | 'UNQUALIFIED_SERVICE' | 'PENDING_INVITATION' | 'EXPIRING_INVITATION' | 'NOT_PUBLISHED'; message: string }
 type OverviewCommon = { business: { id: string; name: string; status: string }; locations: OverviewLocation[]; locationIds: string[]; alerts: OverviewAlert[] }
 type OverviewAgendaItem = Pick<OverviewSegment, 'id' | 'startsAt' | 'endsAt' | 'status' | 'offeringName' | 'customerName'> & { locationName: string }
 type OperationsOverview = OverviewCommon & { role: 'OWNER' | 'MANAGER'; todayAppointments: number; pendingApprovals: number; staffScheduledToday: number; locationUtilization: Array<{ locationId: string; locationName: string; scheduledCapacity: number; bookedCapacity: number; percentage: number }>; agenda: OverviewAgendaItem[] }
@@ -113,15 +113,19 @@ export async function loadBusinessOverviewFacts(context: BusinessOverviewContext
 
 const defaults: Dependencies = { resolveContext: resolveBusinessContext, loadFacts: loadBusinessOverviewFacts }
 function toAgendaItem(segment: OverviewSegment, locations: OverviewLocation[]): OverviewAgendaItem { return { id: segment.id, startsAt: segment.startsAt, endsAt: segment.endsAt, status: segment.status, offeringName: segment.offeringName, customerName: segment.customerName, locationName: locations.find((location) => location.id === segment.locationId)?.name ?? 'Assigned location' } }
-function alertsFrom(facts: OverviewFacts, now: Date): OverviewAlert[] {
+function alertsFrom(facts: OverviewFacts, now: Date, context: BusinessOverviewContext): OverviewAlert[] {
   const pendingInvitations = facts.pendingInvitations ?? []
   const expiring = pendingInvitations.filter(({ expiresAt }) => expiresAt.getTime() <= now.getTime() + 48 * 60 * 60 * 1000)
+  // Publication readiness is Owner-only (Settings, where it can be acted on,
+  // is Owner-only), so this alert is intentionally not surfaced to Managers.
+  const notPublished = context.membership.role === 'OWNER' && context.business.status !== 'PUBLISHED'
   return [
     ...facts.missingHours.map((location) => ({ kind: 'MISSING_HOURS' as const, message: `${location.name} is missing opening hours.` })),
     ...(facts.unassignedRequestedBookings ? [{ kind: 'UNASSIGNED_BOOKING' as const, message: `${facts.unassignedRequestedBookings} requested booking${facts.unassignedRequestedBookings === 1 ? '' : 's'} need a staff assignment.` }] : []),
     ...facts.servicesMissingQualifiedStaff.map((service) => ({ kind: 'UNQUALIFIED_SERVICE' as const, message: `${service.offeringName} has no qualified active staff at ${service.locationName}.` })),
     ...(pendingInvitations.length ? [{ kind: 'PENDING_INVITATION' as const, message: `${pendingInvitations.length} team invitation${pendingInvitations.length === 1 ? ' is' : 's are'} pending.` }] : []),
     ...(expiring.length ? [{ kind: 'EXPIRING_INVITATION' as const, message: `${expiring.length} team invitation${expiring.length === 1 ? '' : 's'} expire${expiring.length === 1 ? 's' : ''} within 48 hours.` }] : []),
+    ...(notPublished ? [{ kind: 'NOT_PUBLISHED' as const, message: 'Your business is not yet published to the marketplace. Review readiness in Settings.' }] : []),
   ]
 }
 
@@ -130,7 +134,7 @@ export async function loadBusinessOverview(input: { actorId: string; now: Date }
   const context = await resolved.resolveContext(input.actorId)
   const facts = await resolved.loadFacts(context, input.now)
   const locations = context.availableLocations
-  const common: OverviewCommon = { business: context.business, locations, locationIds: locations.map((location) => location.id), alerts: alertsFrom(facts, input.now) }
+  const common: OverviewCommon = { business: context.business, locations, locationIds: locations.map((location) => location.id), alerts: alertsFrom(facts, input.now, context) }
   const activeToday = facts.todaySegments.filter((segment) => ACTIVE_SEGMENT_STATUSES.includes(segment.status))
   if (context.membership.role === 'OWNER' || context.membership.role === 'MANAGER') {
     const derived = { todayAppointments: activeToday.length, pendingApprovals: activeToday.filter((segment) => segment.status === 'REQUESTED').length, staffScheduledToday: new Set(activeToday.map((segment) => segment.membershipId).filter(Boolean)).size, locationUtilization: locations.map((location) => { const appointments = activeToday.filter((segment) => segment.locationId === location.id); const scheduledCapacity = appointments.reduce((total, segment) => total + segment.offeringCapacity, 0); const bookedCapacity = appointments.reduce((total, segment) => total + segment.attendeeCount, 0); return { locationId: location.id, locationName: location.name, scheduledCapacity, bookedCapacity, percentage: scheduledCapacity ? Math.round((bookedCapacity / scheduledCapacity) * 100) : 0 } }) }

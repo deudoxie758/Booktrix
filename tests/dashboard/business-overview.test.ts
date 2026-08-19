@@ -42,6 +42,26 @@ describe('loadBusinessOverview', () => {
     expect(model.alerts.map((alert) => alert.kind)).toEqual(['MISSING_HOURS', 'UNASSIGNED_BOOKING', 'UNQUALIFIED_SERVICE'])
   })
 
+  it('adds a not-yet-published alert for Owners once BusinessPolicy/publication readiness exists, but never for Managers', async () => {
+    const unpublishedBusiness = { id: 'business-1', name: 'Island Glow', status: 'SETUP' }
+    const ownerModel = await loadBusinessOverview({ actorId: 'owner-1', now }, {
+      resolveContext: async () => ({ business: unpublishedBusiness, membership: { id: 'owner-membership', role: 'OWNER' as const }, availableLocations: locations }),
+      loadFacts: async () => ({ todaySegments: [], nextAssignedSegment: null, upcomingTimeOff: [], financeOrders: [], missingHours: [], unassignedRequestedBookings: 0, servicesMissingQualifiedStaff: [] }),
+    })
+    expect(ownerModel.alerts).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'NOT_PUBLISHED' })]))
+
+    const managerModel = await loadBusinessOverview({ actorId: 'manager-1', now }, {
+      resolveContext: async () => ({ business: unpublishedBusiness, membership: { id: 'manager-membership', role: 'MANAGER' as const }, availableLocations: locations }),
+      loadFacts: async () => ({ todaySegments: [], nextAssignedSegment: null, upcomingTimeOff: [], financeOrders: [], missingHours: [], unassignedRequestedBookings: 0, servicesMissingQualifiedStaff: [] }),
+    })
+    expect(managerModel.alerts.map((alert) => alert.kind)).not.toContain('NOT_PUBLISHED')
+  })
+
+  it('does not surface a not-yet-published alert once the business is live', async () => {
+    const model = await loadBusinessOverview({ actorId: 'owner-1', now }, dependencies('OWNER', {}))
+    expect(model.alerts.map((alert) => alert.kind)).not.toContain('NOT_PUBLISHED')
+  })
+
   it('adds pending and soon-expiring invitation alerts after invitation persistence exists', async () => {
     const model = await loadBusinessOverview({ actorId: 'owner-1', now }, dependencies('OWNER', {
       pendingInvitations: [
