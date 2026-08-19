@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { renderToString } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 import { BookingFlow } from '@/app/book/[businessSlug]/BookingFlow'
@@ -47,6 +48,12 @@ describe('BookingFlow', () => {
 
     expect(screen.getByRole('group', { name: /how would you like to pay/i })).toBeVisible()
     expect(screen.getByRole('radio', { name: /pay cash/i })).toBeVisible()
+  })
+
+  it('keeps server-rendered payment controls disabled until checkout hydrates', () => {
+    const html = renderToString(<BookingFlow initialState={{ ...state, hold: { token: 'hold-1', expiresAt: '2026-08-20T13:10:00.000Z', expired: false } }} />)
+
+    expect(html).toMatch(/name="paymentChoice"[^>]*disabled=""/)
   })
 
   it('creates a hold after selecting live availability', async () => {
@@ -164,6 +171,25 @@ describe('BookingFlow', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Unable to complete this booking. Please try again.')
     expect(alert).toHaveFocus()
+    vi.unstubAllGlobals()
+  })
+
+  it('reuses the booking idempotency key when confirmation is retried', async () => {
+    const fetch = vi.fn()
+      .mockRejectedValueOnce(new Error('response lost'))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ order: { id: 'order-1' } }) })
+    vi.stubGlobal('fetch', fetch)
+    render(<BookingFlow initialState={{ ...state, hold: { token: 'hold-1', expiresAt: '2026-08-20T13:10:00.000Z', expired: false } }} />)
+    fireEvent.click(screen.getByRole('radio', { name: /pay cash/i }))
+    fireEvent.click(screen.getByRole('button', { name: /review booking/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm booking/i }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: /confirm booking/i }))
+    await screen.findByRole('link', { name: /view your booking/i })
+
+    const first = JSON.parse(String(fetch.mock.calls[0]![1]?.body))
+    const second = JSON.parse(String(fetch.mock.calls[1]![1]?.body))
+    expect(second.idempotencyKey).toBe(first.idempotencyKey)
     vi.unstubAllGlobals()
   })
 })
