@@ -41,7 +41,7 @@ export function LocationHoursEditor({ location, action }: { location: ManagedLoc
     <form onSubmit={submit} aria-label={`${location.name} weekly hours`} className="space-y-4 rounded-3xl border border-sand-200 bg-cream-50 p-4 sm:p-5">
       <div>
         <h3 className="font-display text-xl text-cocoa-950">Weekly opening hours</h3>
-        <p className="mt-1 text-sm text-cocoa-600">Closed days are retained explicitly and never inferred from missing form rows.</p>
+        <p className="mt-1 text-sm text-cocoa-600">Closed is submitted explicitly; stored open intervals determine the public schedule.</p>
       </div>
       <div className="space-y-3">
         {weekdays.map((day, weekday) => {

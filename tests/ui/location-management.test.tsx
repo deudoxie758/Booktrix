@@ -104,6 +104,8 @@ describe('location form feedback', () => {
     const action = vi.fn().mockResolvedValue({ ok: true as const, locationId: 'location-1' })
     render(<LocationHoursEditor location={location} action={action} />)
 
+    expect(screen.getByText('Closed is submitted explicitly; stored open intervals determine the public schedule.')).toBeVisible()
+
     fireEvent.submit(screen.getByRole('form', { name: /weekly hours/i }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('Opening hours saved.')

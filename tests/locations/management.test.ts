@@ -50,12 +50,13 @@ function fixture() {
   ])
   const bookings = [{ id: 'booking-1', locationId: 'assigned' }]
   const audits: Array<{ businessId: string; actorId: string; locationId: string; active: boolean }> = []
+  const managerLocationIds = new Set(['assigned'])
 
   const repository: LocationManagementRepository = {
     async authorize({ actorId, businessId }) {
       if (businessId !== 'business-a') throw new Error('BUSINESS_ACCESS_DENIED')
       if (actorId === 'owner') return { businessId, role: 'OWNER', assignedLocationIds: [] }
-      if (actorId === 'manager') return { businessId, role: 'MANAGER', assignedLocationIds: ['assigned'] }
+      if (actorId === 'manager') return { businessId, role: 'MANAGER', membershipId: 'manager-membership', assignedLocationIds: Array.from(managerLocationIds) }
       if (actorId === 'accounts') return { businessId, role: 'ACCOUNTS', assignedLocationIds: ['assigned'] }
       throw new Error('BUSINESS_ACCESS_DENIED')
     },
@@ -66,9 +67,10 @@ function fixture() {
     async isSlugTaken({ businessId, slug, excludeLocationId }) {
       return Array.from(locations.values()).some((location) => location.businessId === businessId && location.slug === slug && location.id !== excludeLocationId)
     },
-    async create({ businessId, values }) {
+    async create({ businessId, assignMembershipId, values }) {
       const id = `location-${locations.size + 1}`
       locations.set(id, { id, businessId, ...values, hours: [], serviceCount: 0, teamCount: 0 })
+      if (assignMembershipId === 'manager-membership') managerLocationIds.add(id)
       return { id }
     },
     async update({ locationId, values }) {
@@ -92,7 +94,7 @@ function fixture() {
     },
   }
 
-  return { repository, locations, bookings, audits }
+  return { repository, locations, bookings, audits, managerLocationIds }
 }
 
 describe('location management tenant and role boundaries', () => {
@@ -125,6 +127,29 @@ describe('location management tenant and role boundaries', () => {
 })
 
 describe('location identity validation', () => {
+  it('passes the current Manager membership so a created location remains assigned', async () => {
+    const { repository, managerLocationIds } = fixture()
+
+    const result = await createLocation({ actorId: 'manager', businessId: 'business-a', values: validValues }, repository)
+
+    expect(result.ok).toBe(true)
+    expect(result.ok && managerLocationIds.has(result.locationId)).toBe(true)
+  })
+
+  it('translates create and update slug races into the canonical field error', async () => {
+    const createFixture = fixture()
+    const createRepository = { ...createFixture.repository, create: async () => { throw { code: 'P2002' } } }
+    const updateFixture = fixture()
+    const updateRepository = { ...updateFixture.repository, update: async () => { throw { code: 'P2002' } } }
+
+    const created = await createLocation({ actorId: 'owner', businessId: 'business-a', values: validValues }, createRepository)
+    const updated = await updateLocation({ actorId: 'owner', businessId: 'business-a', locationId: 'assigned', values: validValues }, updateRepository)
+
+    const expected = { ok: false, error: 'Please correct the highlighted fields.', fieldErrors: { slug: 'This slug is already used by another location.' } }
+    expect(created).toEqual(expected)
+    expect(updated).toEqual(expected)
+  })
+
   it('normalizes slugs and rejects a duplicate slug only within the active business', async () => {
     const { repository, locations } = fixture()
 
