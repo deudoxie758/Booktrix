@@ -9,5 +9,5 @@ export default async function BusinessLayout({ children }: { children: ReactNode
 	if (!actor) redirect('/auth/sign-in?callbackUrl=/business')
 	const context = await resolveBusinessContext(actor.id).catch(() => null)
 	if (!context) redirect('/for-business')
-	return <WorkspaceShell title={context.business.name} role={context.membership.role}>{children}</WorkspaceShell>
+	return <WorkspaceShell title={context.business.name} role={context.membership.role} activeLocationName={context.activeLocation?.name} identityName={actor.name}>{children}</WorkspaceShell>
 }

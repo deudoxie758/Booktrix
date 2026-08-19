@@ -17,6 +17,14 @@ test('assigned manager sees the agenda and operational filters', async ({ page }
   await expect(page.getByLabel('Status')).toBeVisible()
 })
 
+test('manager dashboard keeps workspace navigation separate from the marketplace', async ({ page }) => {
+  await signIn(page, 'manager.e2e@booktrix.test', '/business')
+  await expect(page.getByRole('heading', { name: /operations overview/i })).toBeVisible()
+  await expect(page.getByRole('link', { name: /booktrix/i })).toHaveAttribute('href', '/business')
+  await expect(page.getByRole('link', { name: /view marketplace/i })).toHaveAttribute('href', '/')
+  await expect(page.getByRole('link', { name: /my account/i })).toHaveAttribute('href', '/profile')
+})
+
 test('manager can enter an explicit walk-in booking', async ({ page }) => {
   await signIn(page, 'manager.e2e@booktrix.test', '/business/calendar')
   await page.getByRole('radio', { name: /walk-in customer/i }).check()
