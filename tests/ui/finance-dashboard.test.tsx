@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { CashAdjustmentForm } from '@/components/business/CashAdjustmentForm'
 import { CashCollectionForm, type CashCollectionActionResult } from '@/components/business/CashCollectionForm'
 import { FinanceFilters, financeQueryString } from '@/components/business/FinanceFilters'
 import { FinanceLedger } from '@/components/business/FinanceLedger'
@@ -17,6 +18,7 @@ function baseModel(overrides: Partial<FinanceLedgerModel> = {}): FinanceLedgerMo
     rows: [{
       orderId: 'order-1', createdAt: now, customerName: 'Kai Joseph', locationId: 'castries', locationName: 'Castries', status: 'CONFIRMED', paymentChoice: 'CASH',
       subtotalCents: 12000, bookedCents: 12000, cancelledCents: 0, cashDueCents: 12000, cashCollectedCents: 4000, cashRemainingCents: 8000, onlineStatus: 'NONE', onlineAmountCents: 0,
+      collections: [{ id: 'collection-1', kind: 'COLLECTION', amountCents: 4000, createdAt: now, note: null }],
     }],
     page: 1, pageSize: 25, totalRows: 1, totalPages: 1,
     ...overrides,
@@ -107,6 +109,30 @@ describe('FinanceLedger', () => {
     expect(within(nav).getByRole('link', { name: /previous/i }).getAttribute('href')).toContain('locationId=castries')
     expect(within(nav).getByRole('link', { name: /next/i }).getAttribute('href')).toContain('page=3')
   })
+
+  it('shows a negative cash-remaining figure truthfully instead of crashing, clamping, or hiding it', () => {
+    // Documents the reconciliation edge case: a segment cancelled after cash was
+    // already collected against it drives cashRemainingCents negative (see
+    // tests/finance/ledger.test.ts for the domain-level scenario). The UI must
+    // not crash and must not silently offer to "collect" more cash for it.
+    const model = baseModel({ rows: [{ ...baseModel().rows[0], cashDueCents: 0, cashRemainingCents: -8000 }] })
+    render(<FinanceLedger model={model} role="OWNER" collectAction={vi.fn()} />)
+
+    expect(screen.queryByText(/^record cash collected$/i)).not.toBeInTheDocument()
+    expect(screen.getAllByText(/overcollected/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/80\.00/).length).toBeGreaterThan(0)
+  })
+
+  it('lists cash-collection evidence per order and lets Owner/Accounts open a correction form for a specific entry, denied for Manager', () => {
+    const action = vi.fn()
+    const { rerender } = render(<FinanceLedger model={baseModel()} role="ACCOUNTS" collectAction={action} />)
+    expect(screen.getAllByText(/correct this entry/i).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getAllByText(/correct this entry/i)[0])
+    expect(screen.getAllByRole('form', { name: /correct cash evidence/i }).length).toBeGreaterThan(0)
+
+    rerender(<FinanceLedger model={baseModel()} role="MANAGER" collectAction={action} />)
+    expect(screen.queryByText(/correct this entry/i)).not.toBeInTheDocument()
+  })
 })
 
 describe('CashCollectionForm', () => {
@@ -149,5 +175,124 @@ describe('CashCollectionForm', () => {
     expect(screen.getByRole('button', { name: /recording/i })).toBeDisabled()
     resolveAction?.({ ok: false, error: 'This would collect more cash than remains due for this booking.' })
     expect(await screen.findByRole('alert')).toHaveTextContent('collect more cash than remains due')
+  })
+
+  it('reuses the same idempotency key across a retry after a dropped/failed response, so a duplicate collection cannot be recorded server-side', async () => {
+    const action = vi.fn()
+      .mockImplementationOnce(async () => { throw new Error('network error, response lost') })
+      .mockImplementationOnce(async (): Promise<CashCollectionActionResult> => ({ ok: true, cashCollectedCents: 8000, cashRemainingCents: 0 }))
+    render(<CashCollectionForm orderId="order-1" cashRemainingCents={8000} action={action} />)
+
+    const form = screen.getByRole('form', { name: /record cash collected/i })
+    fireEvent.change(screen.getByLabelText(/amount collected/i), { target: { value: '80.00' } })
+    fireEvent.submit(form)
+    await screen.findByRole('alert')
+
+    fireEvent.submit(form)
+    await screen.findByRole('status')
+
+    expect(action).toHaveBeenCalledTimes(2)
+    const firstKey = (action.mock.calls[0][0] as FormData).get('idempotencyKey')
+    const secondKey = (action.mock.calls[1][0] as FormData).get('idempotencyKey')
+    expect(secondKey).toBe(firstKey)
+  })
+
+  it('rotates the idempotency key after a successful submission so the next distinct attempt gets a fresh key', async () => {
+    const action = vi.fn(async (_formData: FormData): Promise<CashCollectionActionResult> => ({ ok: true, cashCollectedCents: 3000, cashRemainingCents: 5000 }))
+    render(<CashCollectionForm orderId="order-1" cashRemainingCents={8000} action={action} />)
+
+    const form = screen.getByRole('form', { name: /record cash collected/i })
+    const amountField = screen.getByLabelText(/amount collected/i)
+    fireEvent.change(amountField, { target: { value: '30.00' } })
+    fireEvent.submit(form)
+    await screen.findByRole('status')
+
+    fireEvent.change(amountField, { target: { value: '20.00' } })
+    fireEvent.submit(form)
+    await screen.findByRole('status')
+
+    const firstKey = (action.mock.calls[0][0] as FormData).get('idempotencyKey')
+    const secondKey = (action.mock.calls[1][0] as FormData).get('idempotencyKey')
+    expect(secondKey).not.toBe(firstKey)
+  })
+
+  it('rotates the idempotency key after a definitive business rejection, since the server told us nothing was persisted', async () => {
+    const action = vi.fn(async (_formData: FormData): Promise<CashCollectionActionResult> => ({ ok: false, error: 'This would collect more cash than remains due for this booking.' }))
+    render(<CashCollectionForm orderId="order-1" cashRemainingCents={8000} action={action} />)
+
+    const form = screen.getByRole('form', { name: /record cash collected/i })
+    const amountField = screen.getByLabelText(/amount collected/i)
+    fireEvent.change(amountField, { target: { value: '80.00' } })
+    fireEvent.submit(form)
+    await screen.findByRole('alert')
+
+    fireEvent.change(amountField, { target: { value: '10.00' } })
+    fireEvent.submit(form)
+    await screen.findByRole('alert')
+
+    const firstKey = (action.mock.calls[0][0] as FormData).get('idempotencyKey')
+    const secondKey = (action.mock.calls[1][0] as FormData).get('idempotencyKey')
+    expect(secondKey).not.toBe(firstKey)
+  })
+})
+
+describe('CashAdjustmentForm', () => {
+  it('submits a signed correction delta with a required reason, referencing the original collection', async () => {
+    const action = vi.fn(async (_formData: FormData): Promise<CashCollectionActionResult> => ({ ok: true, cashCollectedCents: 3000, cashRemainingCents: 5000 }))
+    render(<CashAdjustmentForm orderId="order-1" collectionId="collection-1" action={action} />)
+
+    fireEvent.change(screen.getByLabelText(/correction amount/i), { target: { value: '-20.00' } })
+    fireEvent.change(screen.getByLabelText(/reason for this correction/i), { target: { value: 'Recorded $50 by mistake; actually $30.' } })
+    fireEvent.submit(screen.getByRole('form', { name: /correct cash evidence/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('50.00')
+    const formData = action.mock.calls[0][0] as FormData
+    expect(formData.get('amountCents')).toBe('-2000')
+    expect(formData.get('adjustmentOfId')).toBe('collection-1')
+    expect(formData.get('orderId')).toBe('order-1')
+    expect(formData.get('note')).toBe('Recorded $50 by mistake; actually $30.')
+  })
+
+  it('rejects a zero-amount correction before calling the action', async () => {
+    const action = vi.fn()
+    render(<CashAdjustmentForm orderId="order-1" collectionId="collection-1" action={action} />)
+
+    fireEvent.change(screen.getByLabelText(/correction amount/i), { target: { value: '0' } })
+    fireEvent.change(screen.getByLabelText(/reason for this correction/i), { target: { value: 'test' } })
+    fireEvent.submit(screen.getByRole('form', { name: /correct cash evidence/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/non-zero/i)
+    expect(action).not.toHaveBeenCalled()
+  })
+
+  it('requires a reason before calling the action', async () => {
+    const action = vi.fn()
+    render(<CashAdjustmentForm orderId="order-1" collectionId="collection-1" action={action} />)
+
+    fireEvent.change(screen.getByLabelText(/correction amount/i), { target: { value: '-10.00' } })
+    fireEvent.submit(screen.getByRole('form', { name: /correct cash evidence/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/reason/i)
+    expect(action).not.toHaveBeenCalled()
+  })
+
+  it('reuses the same idempotency key across a dropped-response retry', async () => {
+    const action = vi.fn()
+      .mockImplementationOnce(async () => { throw new Error('network error, response lost') })
+      .mockImplementationOnce(async (): Promise<CashCollectionActionResult> => ({ ok: true, cashCollectedCents: 3000, cashRemainingCents: 5000 }))
+    render(<CashAdjustmentForm orderId="order-1" collectionId="collection-1" action={action} />)
+
+    fireEvent.change(screen.getByLabelText(/correction amount/i), { target: { value: '-10.00' } })
+    fireEvent.change(screen.getByLabelText(/reason for this correction/i), { target: { value: 'test' } })
+    const form = screen.getByRole('form', { name: /correct cash evidence/i })
+    fireEvent.submit(form)
+    await screen.findByRole('alert')
+
+    fireEvent.submit(form)
+    await screen.findByRole('status')
+
+    const firstKey = (action.mock.calls[0][0] as FormData).get('idempotencyKey')
+    const secondKey = (action.mock.calls[1][0] as FormData).get('idempotencyKey')
+    expect(secondKey).toBe(firstKey)
   })
 })

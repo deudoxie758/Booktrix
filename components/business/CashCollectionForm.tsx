@@ -14,6 +14,14 @@ function money(cents: number) {
 export function CashCollectionForm({ orderId, cashRemainingCents, action }: { orderId: string; cashRemainingCents: number; action: CashCollectionAction }) {
   const [pending, setPending] = useState(false)
   const [result, setResult] = useState<CashCollectionActionResult | null>(null)
+  // Generated once per logical attempt, not inside submit(). It is only
+  // rotated after a definitive terminal response (the server told us success
+  // or a definitive rejection). If the response is lost (network error /
+  // timeout — the catch branch below), we do NOT know whether the server
+  // already committed the collection, so a retry must reuse this same key:
+  // the server-side idempotent-replay check (modules/finance/cash-collection.ts)
+  // then recognizes it and never records a second, real cash collection.
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
   const submitting = useRef(false)
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -30,12 +38,13 @@ export function CashCollectionForm({ orderId, cashRemainingCents, action }: { or
     setResult(null)
     formData.set('amountCents', String(Math.round(amountValue * 100)))
     formData.set('orderId', orderId)
-    formData.set('idempotencyKey', crypto.randomUUID())
+    formData.set('idempotencyKey', idempotencyKey)
     try {
       const next = await action(formData)
       setResult(next)
+      setIdempotencyKey(crypto.randomUUID())
     } catch {
-      setResult({ ok: false, error: 'Unable to record cash collected. Please try again.' })
+      setResult({ ok: false, error: 'Unable to reach the server. Please try again.' })
     } finally {
       submitting.current = false
       setPending(false)

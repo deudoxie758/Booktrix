@@ -178,7 +178,7 @@ describe('recordCashCollection idempotency and adjustments', () => {
 
   it('rejects an adjustment that references a collection from a different order', async () => {
     const { repository } = fixture()
-    await expect(recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: 500, idempotencyKey: 'key-1', adjustmentOfId: 'nonexistent', now }, repository))
+    await expect(recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: 500, idempotencyKey: 'key-1', adjustmentOfId: 'nonexistent', note: 'Correction', now }, repository))
       .rejects.toMatchObject({ code: 'FINANCE_CASH_ADJUSTMENT_TARGET_INVALID' })
   })
 
@@ -186,5 +186,48 @@ describe('recordCashCollection idempotency and adjustments', () => {
     const { repository, state } = fixture()
     await recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: 3000, idempotencyKey: 'key-1', now }, repository)
     expect(state.audits.some((audit) => audit.action === 'FINANCE_CASH_COLLECTED')).toBe(true)
+  })
+})
+
+describe('recordCashCollection bidirectional adjustments', () => {
+  it('allows a downward adjustment (negative delta) that corrects an over-recorded collection', async () => {
+    const { repository, state } = fixture()
+    const collection = await recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: 5000, idempotencyKey: 'key-1', now }, repository)
+    const correction = await recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: -2000, idempotencyKey: 'key-correction', adjustmentOfId: collection.id, note: 'Recorded $50 by mistake; actually $30.', now }, repository)
+
+    expect(correction.kind).toBe('ADJUSTMENT')
+    expect(correction.amountCents).toBe(-2000)
+    expect(correction.cashCollectedCents).toBe(3000)
+    expect(correction.cashRemainingCents).toBe(5000)
+    expect(state.collections).toHaveLength(2)
+    expect(state.collections.every((row) => row.orderId === 'order-1')).toBe(true)
+  })
+
+  it('rejects a downward adjustment that would drive the cumulative collected total negative', async () => {
+    const { repository, state } = fixture()
+    const collection = await recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: 1000, idempotencyKey: 'key-1', now }, repository)
+    await expect(recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: -1500, idempotencyKey: 'key-correction', adjustmentOfId: collection.id, note: 'Overcorrection attempt', now }, repository))
+      .rejects.toMatchObject({ code: 'FINANCE_CASH_ADJUSTMENT_NEGATIVE_TOTAL' })
+    expect(state.collections).toHaveLength(1)
+  })
+
+  it('rejects a zero-amount adjustment', async () => {
+    const { repository } = fixture()
+    const collection = await recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: 1000, idempotencyKey: 'key-1', now }, repository)
+    await expect(recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: 0, idempotencyKey: 'key-correction', adjustmentOfId: collection.id, note: 'no-op', now }, repository))
+      .rejects.toMatchObject({ code: 'FINANCE_CASH_INVALID_AMOUNT' })
+  })
+
+  it('requires a reason for an adjustment', async () => {
+    const { repository } = fixture()
+    const collection = await recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: 1000, idempotencyKey: 'key-1', now }, repository)
+    await expect(recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: -100, idempotencyKey: 'key-correction', adjustmentOfId: collection.id, now }, repository))
+      .rejects.toMatchObject({ code: 'FINANCE_CASH_ADJUSTMENT_REASON_REQUIRED' })
+  })
+
+  it('still rejects a negative amount for a standard (non-adjustment) collection', async () => {
+    const { repository } = fixture()
+    await expect(recordCashCollection({ actorId: 'owner', businessId: 'business-a', orderId: 'order-1', amountCents: -500, idempotencyKey: 'key-1', now }, repository))
+      .rejects.toMatchObject({ code: 'FINANCE_CASH_INVALID_AMOUNT' })
   })
 })

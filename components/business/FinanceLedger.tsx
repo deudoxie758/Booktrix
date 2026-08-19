@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Card } from '@/components/ui/Card'
 import type { FinanceLedgerModel, FinanceLedgerRow } from '@/modules/finance/ledger'
+import { CashAdjustmentForm } from './CashAdjustmentForm'
 import { CashCollectionForm, type CashCollectionAction } from './CashCollectionForm'
 import { financeQueryString } from './FinanceFilters'
 
@@ -20,13 +21,43 @@ function onlineLabel(row: FinanceLedgerRow) {
   return row.onlineStatus
 }
 
+function moneySigned(cents: number) {
+  const sign = cents < 0 ? '-' : ''
+  return `${sign}EC$${(Math.abs(cents) / 100).toFixed(2)}`
+}
+
 function CollectionControl({ row, role, action }: { row: FinanceLedgerRow; role: string; action?: CashCollectionAction }) {
   if (!action || (role !== 'OWNER' && role !== 'ACCOUNTS')) return null
-  if (row.cashRemainingCents <= 0) return <p className="text-xs font-semibold text-cocoa-500">No cash due.</p>
+  // A negative remaining figure is a real reconciliation state (e.g. a segment
+  // was cancelled after cash was already collected against it) — surface it
+  // truthfully rather than crashing, clamping it to zero, or silently
+  // offering to collect more cash that is not due.
+  if (row.cashRemainingCents < 0) return <p className="text-xs font-semibold text-danger">Overcollected by {moneySigned(Math.abs(row.cashRemainingCents))}. No further cash is due.</p>
+  if (row.cashRemainingCents === 0) return <p className="text-xs font-semibold text-cocoa-500">No cash due.</p>
   return <details className="rounded-xl border border-sand-200 p-3">
     <summary className="cursor-pointer text-sm font-semibold text-cocoa-900">Record cash collected</summary>
     <div className="mt-3"><CashCollectionForm orderId={row.orderId} cashRemainingCents={row.cashRemainingCents} action={action} /></div>
   </details>
+}
+
+function CollectionHistory({ row, role, action }: { row: FinanceLedgerRow; role: string; action?: CashCollectionAction }) {
+  if (!action || (role !== 'OWNER' && role !== 'ACCOUNTS') || !row.collections.length) return null
+  return <div className="space-y-2">
+    <p className="text-xs font-bold uppercase tracking-[.08em] text-cocoa-600">Cash evidence</p>
+    <ul className="space-y-2">
+      {row.collections.map((collection) => <li key={collection.id} className="rounded-xl border border-sand-200 p-3 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="font-semibold text-cocoa-900">{collection.kind === 'ADJUSTMENT' ? 'Correction' : 'Collected'} {moneySigned(collection.amountCents)}</span>
+          <span className="text-cocoa-500">{dateTime(collection.createdAt)}</span>
+        </div>
+        {collection.note ? <p className="mt-1 text-cocoa-600">{collection.note}</p> : null}
+        <details className="mt-2">
+          <summary className="cursor-pointer font-semibold text-cocoa-900">Correct this entry</summary>
+          <div className="mt-2"><CashAdjustmentForm orderId={row.orderId} collectionId={collection.id} action={action} /></div>
+        </details>
+      </li>)}
+    </ul>
+  </div>
 }
 
 export function FinanceLedger({ model, role, collectAction }: { model: FinanceLedgerModel; role: string; collectAction?: CashCollectionAction }) {
@@ -54,7 +85,10 @@ export function FinanceLedger({ model, role, collectAction }: { model: FinanceLe
             <td className="px-4 py-3">{money(row.cashDueCents)}</td>
             <td className="px-4 py-3">{money(row.cashCollectedCents)}</td>
             <td className="px-4 py-3">{onlineLabel(row)}</td>
-            <td className="px-4 py-3"><CollectionControl row={row} role={role} action={collectAction} /></td>
+            <td className="px-4 py-3 space-y-3">
+              <CollectionControl row={row} role={role} action={collectAction} />
+              <CollectionHistory row={row} role={role} action={collectAction} />
+            </td>
           </tr>)}
         </tbody>
       </table>
@@ -75,6 +109,7 @@ export function FinanceLedger({ model, role, collectAction }: { model: FinanceLe
           </dl>
           <p className="text-xs text-cocoa-600">Online: {onlineLabel(row)}</p>
           <CollectionControl row={row} role={role} action={collectAction} />
+          <CollectionHistory row={row} role={role} action={collectAction} />
         </Card>
       </li>)}
       {!model.rows.length ? <li className="text-sm text-cocoa-600">No bookings match the current filters.</li> : null}

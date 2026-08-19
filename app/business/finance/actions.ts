@@ -14,6 +14,8 @@ const messages: Record<string, string> = {
   FINANCE_CASH_IDEMPOTENCY_KEY_REQUIRED: 'Unable to record cash collected. Please try again.',
   FINANCE_CASH_IDEMPOTENCY_KEY_REUSED: 'This submission conflicts with an earlier request. Please refresh and try again.',
   FINANCE_CASH_ADJUSTMENT_TARGET_INVALID: 'The referenced cash collection could not be found.',
+  FINANCE_CASH_ADJUSTMENT_REASON_REQUIRED: 'Enter a reason for this correction.',
+  FINANCE_CASH_ADJUSTMENT_NEGATIVE_TOTAL: 'This correction would drive the recorded cash total negative.',
 }
 
 function refreshFinanceConsumers() {
@@ -24,12 +26,14 @@ export async function recordCashCollectionAction(formData: FormData): Promise<Ca
   const context = await requireWorkspaceRole(['OWNER', 'ACCOUNTS'])
   try {
     const amountCents = Number(formData.get('amountCents'))
+    const adjustmentOfIdRaw = formData.get('adjustmentOfId')
     const result = await recordCashCollection({
       actorId: context.actor.id,
       businessId: context.business.id,
       orderId: String(formData.get('orderId') ?? ''),
       amountCents,
       idempotencyKey: String(formData.get('idempotencyKey') ?? ''),
+      adjustmentOfId: adjustmentOfIdRaw ? String(adjustmentOfIdRaw) : undefined,
       note: formData.get('note') ? String(formData.get('note')) : undefined,
     })
     refreshFinanceConsumers()

@@ -194,6 +194,49 @@ describe('loadFinanceLedger', () => {
     const pageTwo = await loadFinanceLedger({ actorId: 'accounts-1', now, rawFilters: { page: '2' } }, { resolveContext, queryOrders })
     expect(pageTwo.rows[0].orderId).not.toBe(pageOne.rows[0].orderId)
   })
+
+  it('exposes each order’s individual cash-collection evidence so the UI can reference a specific entry for a correction', async () => {
+    const orders = [makeOrder({ CashCollections: [
+      { id: 'collection-1', kind: 'COLLECTION', amountCents: 5000, createdAt: now, note: null },
+      { id: 'collection-2', kind: 'ADJUSTMENT', amountCents: -1000, createdAt: now, note: 'Till correction' },
+    ] })]
+    const queryOrders = vi.fn().mockResolvedValue(orders)
+    const resolveContext = vi.fn().mockResolvedValue(context())
+
+    const model = await loadFinanceLedger({ actorId: 'accounts-1', now, rawFilters: {} }, { resolveContext, queryOrders })
+
+    expect(model.rows[0].collections).toEqual([
+      { id: 'collection-1', kind: 'COLLECTION', amountCents: 5000, createdAt: now, note: null },
+      { id: 'collection-2', kind: 'ADJUSTMENT', amountCents: -1000, createdAt: now, note: 'Till correction' },
+    ])
+    expect(model.rows[0].cashCollectedCents).toBe(4000)
+  })
+
+  it('documents that a segment cancelled after cash was already collected against it produces a negative cash-remaining figure, surfaced truthfully rather than clamped or hidden', async () => {
+    // This is a real, currently-unresolved reconciliation edge case: booking-segment
+    // status mutations (modules/bookings/management.ts) are not serialized against the
+    // finance module's per-order cash-collection lock, and cashDueCents is always
+    // recomputed live from current segment status. An entirely ordinary *sequential*
+    // flow — collect cash while a segment is CONFIRMED, then a manager cancels that
+    // segment afterward via manageBookingSegment (which does not cascade the parent
+    // order's stored `status`) — reaches this state with no race involved. The root
+    // cause is out of scope for the finance module; this test exists to document the
+    // behavior and prove the ledger surfaces it truthfully instead of crashing or
+    // silently clamping to zero.
+    const orders = [makeOrder({
+      status: 'CONFIRMED', // stale: not cascaded when the only segment was cancelled
+      Segments: [{ locationId: 'castries', status: 'CANCELLED', priceCents: 12000, startsAt: now, offering: { depositKind: null, depositValue: null } }],
+      CashCollections: [{ id: 'collection-1', kind: 'COLLECTION', amountCents: 8000, createdAt: now, note: null }],
+    })]
+    const queryOrders = vi.fn().mockResolvedValue(orders)
+    const resolveContext = vi.fn().mockResolvedValue(context())
+
+    const model = await loadFinanceLedger({ actorId: 'accounts-1', now, rawFilters: {} }, { resolveContext, queryOrders })
+
+    expect(model.rows[0].cashDueCents).toBe(0)
+    expect(model.rows[0].cashCollectedCents).toBe(8000)
+    expect(model.rows[0].cashRemainingCents).toBe(-8000)
+  })
 })
 
 describe('createFinanceCsv', () => {

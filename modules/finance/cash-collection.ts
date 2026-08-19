@@ -80,7 +80,14 @@ function assertIdempotentReplay(existing: CashCollectionRecord, input: RecordCas
 export async function recordCashCollection(input: RecordCashCollectionInput, repository: CashCollectionRepository = defaultRepository): Promise<RecordCashCollectionResult> {
   const now = input.now ?? new Date()
   if (!input.idempotencyKey) throw financeError('FINANCE_CASH_IDEMPOTENCY_KEY_REQUIRED')
-  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) throw financeError('FINANCE_CASH_INVALID_AMOUNT')
+  const kind: 'COLLECTION' | 'ADJUSTMENT' = input.adjustmentOfId ? 'ADJUSTMENT' : 'COLLECTION'
+  // A standard COLLECTION must be a positive amount. An ADJUSTMENT is a signed
+  // correction delta: it may be negative (correcting an over-recorded amount)
+  // or positive (correcting an under-recorded amount), but never zero, and it
+  // always requires a reason for the audit trail.
+  if (!Number.isInteger(input.amountCents) || input.amountCents === 0) throw financeError('FINANCE_CASH_INVALID_AMOUNT')
+  if (kind === 'COLLECTION' && input.amountCents < 0) throw financeError('FINANCE_CASH_INVALID_AMOUNT')
+  if (kind === 'ADJUSTMENT' && !input.note?.trim()) throw financeError('FINANCE_CASH_ADJUSTMENT_REASON_REQUIRED')
 
   return repository.transaction(async (transaction) => {
     const actor = await transaction.getActorAccess({ actorId: input.actorId, businessId: input.businessId })
@@ -104,7 +111,6 @@ export async function recordCashCollection(input: RecordCashCollectionInput, rep
       }
     }
 
-    const kind: 'COLLECTION' | 'ADJUSTMENT' = input.adjustmentOfId ? 'ADJUSTMENT' : 'COLLECTION'
     if (kind === 'ADJUSTMENT') {
       const target = await transaction.findAdjustmentTarget({ id: input.adjustmentOfId!, orderId: order.id })
       if (!target) throw financeError('FINANCE_CASH_ADJUSTMENT_TARGET_INVALID')
@@ -114,6 +120,12 @@ export async function recordCashCollection(input: RecordCashCollectionInput, rep
     const totals = await transaction.sumCollectedCents({ orderId: order.id })
     if (kind === 'COLLECTION' && totals.collectionCents + input.amountCents > classification.cashDueCents) {
       throw financeError('FINANCE_CASH_OVER_COLLECTED')
+    }
+    // Adjustments are exempt from the due cap (they are deliberate, audited
+    // corrections), but the running total of all recorded cash evidence must
+    // never be driven below zero by a downward correction.
+    if (kind === 'ADJUSTMENT' && totals.totalCents + input.amountCents < 0) {
+      throw financeError('FINANCE_CASH_ADJUSTMENT_NEGATIVE_TOTAL')
     }
 
     const created = await transaction.createCollection({

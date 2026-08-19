@@ -58,6 +58,8 @@ export function classifyOrderFinance(order: FinanceOrderClassificationInput): Fi
 
 export type FinanceLocationOption = { id: string; name: string }
 
+export type FinanceLedgerCollection = { id: string; kind: 'COLLECTION' | 'ADJUSTMENT'; amountCents: number; createdAt: Date; note: string | null }
+
 export type FinanceLedgerRow = {
   orderId: string
   createdAt: Date
@@ -74,6 +76,9 @@ export type FinanceLedgerRow = {
   cashRemainingCents: number
   onlineStatus: 'NONE' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED'
   onlineAmountCents: number
+  /** Individual append-only cash-collection evidence for this order, oldest first,
+   *  so the UI can offer a correction (ADJUSTMENT) referencing a specific entry. */
+  collections: FinanceLedgerCollection[]
 }
 
 export type FinanceSummary = {
@@ -111,7 +116,7 @@ type RawFinanceOrder = {
   customer: { name: string | null } | null
   PaymentRequest: { status: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED'; amountCents: number } | null
   Segments: Array<{ locationId: string; status: string; priceCents: number; offering: { depositKind: DepositKind; depositValue: number | null } }>
-  CashCollections: Array<{ amountCents: number; kind: 'COLLECTION' | 'ADJUSTMENT' }>
+  CashCollections: Array<{ id: string; amountCents: number; kind: 'COLLECTION' | 'ADJUSTMENT'; createdAt: Date; note: string | null }>
 }
 
 async function resolveFinanceContext(actorId: string): Promise<FinanceContext> {
@@ -135,7 +140,7 @@ async function queryFinanceOrders(context: FinanceContext, filters: FinanceFilte
       customer: { select: { name: true } },
       PaymentRequest: { select: { status: true, amountCents: true } },
       Segments: { select: { locationId: true, status: true, priceCents: true, offering: { select: { depositKind: true, depositValue: true } } } },
-      CashCollections: { select: { amountCents: true, kind: true } },
+      CashCollections: { select: { id: true, amountCents: true, kind: true, createdAt: true, note: true }, orderBy: { createdAt: 'asc' } },
     },
     orderBy: { createdAt: 'desc' },
   })
@@ -166,6 +171,7 @@ function buildRow(order: RawFinanceOrder, locations: FinanceLocationOption[]): F
     cashRemainingCents: classification.cashDueCents - cashCollectedCents,
     onlineStatus,
     onlineAmountCents: onlineStatus === 'PENDING' ? (order.PaymentRequest?.amountCents ?? 0) : 0,
+    collections: order.CashCollections.map((collection) => ({ id: collection.id, kind: collection.kind, amountCents: collection.amountCents, createdAt: collection.createdAt, note: collection.note })),
   }
 }
 
