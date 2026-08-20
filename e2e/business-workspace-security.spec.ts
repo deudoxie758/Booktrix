@@ -99,22 +99,25 @@ test.describe('Cross-role authorization: Manager', () => {
     await signIn(page, 'manager.e2e@booktrix.test', '/business/team')
     await page.getByRole('heading', { name: 'Team', exact: true }).waitFor()
 
+    let forgedRole = ''
     await page.route('**/business/team', async (route) => {
       const request = route.request()
       if (request.method() !== 'POST' || !request.headers()['next-action']) return route.continue()
       const postData = request.postData()
-      if (postData && postData.includes('name="1_role"\r\n\r\nSTAFF')) {
-        return route.continue({ postData: postData.replace('name="1_role"\r\n\r\nSTAFF', 'name="1_role"\r\n\r\nMANAGER') })
+      if (postData && forgedRole && postData.includes('name="1_role"\r\n\r\nSTAFF')) {
+        return route.continue({ postData: postData.replace('name="1_role"\r\n\r\nSTAFF', `name="1_role"\r\n\r\n${forgedRole}`) })
       }
       return route.continue()
     })
 
     const form = page.getByRole('form', { name: 'Invite team member' })
-    await form.getByLabel('Name').fill('Forged Manager Invite')
-    await form.getByLabel('Email').fill('forged-manager-invite.e2e@booktrix.test')
-    await form.getByRole('button', { name: 'Send invitation' }).click()
-
-    await expect(form.getByRole('alert')).toHaveText('You cannot invite that role.')
+    for (const role of ['MANAGER', 'ACCOUNTS']) {
+      forgedRole = role
+      await form.getByLabel('Name').fill(`Forged ${role} Invite`)
+      await form.getByLabel('Email').fill(`forged-${role.toLowerCase()}-invite.e2e@booktrix.test`)
+      await form.getByRole('button', { name: 'Send invitation' }).click()
+      await expect(form.getByRole('alert'), `expected role forgery to ${role} to be denied`).toHaveText('You cannot invite that role.')
+    }
   })
 
   test('Manager cannot grant Manager or Accounts to an in-scope member via a forged access-update request', async ({ page }, testInfo) => {
@@ -122,12 +125,13 @@ test.describe('Cross-role authorization: Manager', () => {
     await signIn(page, 'manager.e2e@booktrix.test', '/business/team')
     await page.getByRole('heading', { name: 'Team', exact: true }).waitFor()
 
+    let forgedRole = ''
     await page.route('**/business/team', async (route) => {
       const request = route.request()
       if (request.method() !== 'POST' || !request.headers()['next-action']) return route.continue()
       const postData = request.postData()
-      if (postData && postData.includes('name="1_role"\r\n\r\nSTAFF') && postData.includes('membershipId')) {
-        return route.continue({ postData: postData.replace('name="1_role"\r\n\r\nSTAFF', 'name="1_role"\r\n\r\nMANAGER') })
+      if (postData && forgedRole && postData.includes('name="1_role"\r\n\r\nSTAFF') && postData.includes('membershipId')) {
+        return route.continue({ postData: postData.replace('name="1_role"\r\n\r\nSTAFF', `name="1_role"\r\n\r\n${forgedRole}`) })
       }
       return route.continue()
     })
@@ -135,9 +139,11 @@ test.describe('Cross-role authorization: Manager', () => {
     const card = page.locator('article', { hasText: 'Priya E2E' }).first()
     await card.waitFor()
     await card.getByText('Edit access', { exact: true }).click()
-    await card.getByRole('button', { name: /^save access$/i }).click()
-
-    await expect(card.getByRole('alert')).toHaveText('You cannot manage that team role.')
+    for (const role of ['MANAGER', 'ACCOUNTS']) {
+      forgedRole = role
+      await card.getByRole('button', { name: /^save access$/i }).click()
+      await expect(card.getByRole('alert'), `expected role forgery to ${role} to be denied`).toHaveText('You cannot manage that team role.')
+    }
   })
 })
 
@@ -151,7 +157,7 @@ test.describe('Cross-role authorization: Staff', () => {
     }
   })
 
-  test('Staff cannot mutate schedule, locations, team, or finance via a replayed authorized request', async ({ browser }, testInfo) => {
+  test('Staff cannot mutate schedule, locations, team, finance, services, or settings via a replayed authorized request', async ({ browser }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'Server-side authorization is viewport-independent; verified once on desktop.')
 
     // Capture a real, valid saveStaffScheduleAction request as Owner (a true
@@ -198,6 +204,28 @@ test.describe('Cross-role authorization: Staff', () => {
       await teamCard.getByRole('button', { name: /^save access$/i }).click()
       await ownerPage.waitForTimeout(500)
     })
+    // Capture a real saveOfferingAction request as Owner.
+    await ownerPage.goto(`/business/services`)
+    await ownerPage.getByRole('heading', { name: 'Services', exact: true }).waitFor()
+    const serviceForm = ownerPage.locator('form', { hasText: 'Add a service' })
+    const capturedService = await captureAction(ownerPage, '**/business/services', async () => {
+      await serviceForm.getByLabel('Service name').fill('Staff Forgery Probe Service')
+      await serviceForm.getByLabel('Category').fill('Probe')
+      await serviceForm.getByLabel('Duration (minutes)').fill('30')
+      await serviceForm.getByLabel('Price (EC$)').fill('10')
+      await serviceForm.getByRole('button', { name: /save service/i }).click()
+      await ownerPage.waitForTimeout(500)
+    })
+
+    // Capture a real saveBusinessPolicyAction request as Owner.
+    await ownerPage.goto(`/business/settings`)
+    await ownerPage.getByRole('heading', { name: 'Business settings' }).waitFor()
+    const policyForm = ownerPage.getByRole('form', { name: 'Booking policy' })
+    const capturedSettings = await captureAction(ownerPage, '**/business/settings', async () => {
+      await policyForm.getByRole('button', { name: /save booking policy/i }).click()
+      await ownerPage.waitForTimeout(500)
+    })
+
     await ownerContext.close()
 
     // Capture a real recordCashCollectionAction request as Accounts.
@@ -231,6 +259,12 @@ test.describe('Cross-role authorization: Staff', () => {
 
     const financeReplay = await replay(staffContext.request, capturedFinance)
     expect(financeReplay.ok()).toBeFalsy()
+
+    const serviceReplay = await replay(staffContext.request, capturedService)
+    expect(serviceReplay.ok()).toBeFalsy()
+
+    const settingsReplay = await replay(staffContext.request, capturedSettings)
+    expect(settingsReplay.ok()).toBeFalsy()
 
     await staffContext.close()
   })
