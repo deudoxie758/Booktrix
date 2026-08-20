@@ -1,9 +1,64 @@
 import 'dotenv/config'
+import { createHash } from 'node:crypto'
 import { BusinessRole, ConfirmationMode, DepositKind, PrismaClient, Role } from '@prisma/client'
 import { hash } from 'bcryptjs'
 
 const prisma = new PrismaClient()
 const password = 'password123'
+const hashToken = (token: string) => createHash('sha256').update(token).digest('hex')
+
+// Pure, testable date helpers so the fixture test can assert every
+// security/finance state is expressed relative to "now" (Saint Lucia local
+// time), not a hardcoded calendar date that would eventually drift into the
+// past or fail once the fixture is years old.
+export function pendingInvitationWindow(now: Date) {
+  return { expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) }
+}
+export function expiredInvitationWindow(now: Date) {
+  return { expiresAt: new Date(now.getTime() - 24 * 60 * 60 * 1000) }
+}
+// Saint Lucia (America/St_Lucia) is fixed at UTC-4 year-round (no DST), so a
+// local hour converts to UTC with a constant +4 offset.
+export function stLuciaFutureAppointment(now: Date, daysAhead: number, localHour = 10) {
+  const base = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000)
+  const startsAt = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), localHour + 4, 0, 0))
+  const endsAt = new Date(startsAt.getTime() + 60 * 60000)
+  return { startsAt, endsAt }
+}
+
+// Deterministic, namespaced fixtures for Task 6's cross-role security and
+// responsive E2E coverage. Every id below is stable across reruns (upserted
+// by id, never destructively recreated) and every user-facing token is fixed
+// so specs can reuse it. All ids are `booktrix-e2e-*` namespaced.
+export const workspaceSecurityFixtures = {
+  business: { id: 'booktrix-e2e-business', slug: 'booktrix-e2e-studio' },
+  inactiveLocationId: 'booktrix-e2e-location-retired',
+  invitations: {
+    pending: { id: 'booktrix-e2e-invitation-pending', email: 'pending-invite.e2e@booktrix.test', token: 'booktrix-e2e-invitation-token-pending-0001' },
+    expired: { id: 'booktrix-e2e-invitation-expired', email: 'expired-invite.e2e@booktrix.test', token: 'booktrix-e2e-invitation-token-expired-0001' },
+    revoked: { id: 'booktrix-e2e-invitation-revoked', email: 'revoked-invite.e2e@booktrix.test', token: 'booktrix-e2e-invitation-token-revoked-0001' },
+  },
+  cashOrders: {
+    dueCastries: { id: 'booktrix-e2e-order-cash-due-castries', cashDueCents: 12000, cashCollectedCents: 0 },
+    partialCastries: { id: 'booktrix-e2e-order-cash-partial-castries', cashDueCents: 12000, cashCollectedCents: 5000 },
+    dueRodneyBay: { id: 'booktrix-e2e-order-cash-due-rodney', cashDueCents: 12000, cashCollectedCents: 0 },
+  },
+  // A Staff member scoped only to Castries (unlike `staff.e2e@booktrix.test`,
+  // which is assigned to both studio locations and is therefore entirely out
+  // of the Manager's single-location view). This gives the Manager an
+  // in-scope team member to attempt a forged role-elevation mutation against.
+  staffCastriesOnly: { userId: 'booktrix-e2e-staff-castries', membershipId: 'booktrix-e2e-membership-staff-castries', email: 'staff-castries.e2e@booktrix.test', name: 'Priya E2E' },
+  // Reuses an existing, wholly separate demo business/location/membership
+  // (seeded below) as the adversarial "foreign" target for forged cross-
+  // tenant mutation attempts — no dedicated fixture needed since six
+  // independent demo storefronts already exist.
+  crossTenant: {
+    foreignBusinessId: 'booktrix-e2e-business-sole-wellness-house',
+    foreignLocationId: 'booktrix-e2e-location-sole-castries',
+    foreignMembershipId: 'booktrix-e2e-member-sole-owner',
+    foreignOwnerEmail: 'sole-owner@booktrix.test',
+  },
+}
 type Hours = Array<[number, number, number]>
 type LocationFixture = { id: string; slug: string; name: string; address: string; phone: string; email: string; hours: Hours }
 type MemberFixture = { id: string; email: string; name: string; role: BusinessRole; locations: string[] }
@@ -65,6 +120,7 @@ export const fixtureOwnership: FixtureOwnership = {
   users: [
     ...demoBusinesses.flatMap((business) => business.members.map((member) => ({ id: `booktrix-e2e-user-${member.id.slice('booktrix-e2e-member-'.length)}`, email: member.email }))),
     { id: 'booktrix-e2e-owner', email: 'owner.e2e@booktrix.test' }, { id: 'booktrix-e2e-manager', email: 'manager.e2e@booktrix.test' }, { id: 'booktrix-e2e-staff', email: 'staff.e2e@booktrix.test' }, { id: 'booktrix-e2e-customer', email: 'customer.e2e@booktrix.test' }, { id: 'booktrix-e2e-accounts', email: 'accounts.e2e@booktrix.test' },
+    { id: workspaceSecurityFixtures.staffCastriesOnly.userId, email: workspaceSecurityFixtures.staffCastriesOnly.email },
   ],
   businesses: [...demoBusinesses.map(({ id, slug }) => ({ id, slug })), { id: 'booktrix-e2e-business', slug: 'booktrix-e2e-studio' }],
   offerings: demoBusinesses.flatMap((business) => business.offerings.map((offering) => ({ id: offering.id, allowFullPayment: offering.full ?? true, allowDeposit: Boolean(offering.deposit), allowCash: offering.cash ?? true }))),
@@ -137,6 +193,101 @@ async function seedBookingJourneyFixtures() {
   for (const savedLocation of [castries, rodneyBay]) for (let weekday = 0; weekday < 7; weekday += 1) { await prisma.locationHours.upsert({ where: { locationId_weekday_startMinute_endMinute: { locationId: savedLocation.id, weekday, startMinute: 540, endMinute: 1020 } }, create: { id: `booktrix-e2e-hours-studio-${savedLocation.slug}-${weekday}`, locationId: savedLocation.id, weekday, startMinute: 540, endMinute: 1020 }, update: {} }); await prisma.staffSchedule.upsert({ where: { membershipId_locationId_weekday_startMinute_endMinute: { membershipId: staffMembershipId, locationId: savedLocation.id, weekday, startMinute: 540, endMinute: 1020 } }, create: { id: `booktrix-e2e-schedule-studio-${savedLocation.slug}-${weekday}`, membershipId: staffMembershipId, locationId: savedLocation.id, weekday, startMinute: 540, endMinute: 1020 }, update: {} }) }
   await prisma.staffTimeOff.upsert({ where: { id: 'booktrix-e2e-time-off' }, create: { id: 'booktrix-e2e-time-off', membershipId: staffMembershipId, locationId: rodneyBay.id, startsAt: new Date('2030-01-15T13:00:00Z'), endsAt: new Date('2030-01-15T17:00:00Z'), reason: 'E2E fixture' }, update: {} })
   await prisma.bookingHold.upsert({ where: { token: 'booktrix-e2e-expired-hold' }, create: { id: 'booktrix-e2e-expired-hold-id', token: 'booktrix-e2e-expired-hold', idempotencyKey: 'booktrix-e2e-expired-hold', businessId: business.id, customerId: customer.id, checkoutIdentity: 'booktrix-e2e-expired', expiresAt: new Date('2020-01-01T00:00:00Z') }, update: { consumedAt: null, expiresAt: new Date('2020-01-01T00:00:00Z') } })
+  await seedWorkspaceSecurityFixtures({ business, castries, rodneyBay, owner, customer, memberships, offeringId: massage.id })
+}
+
+// Task 6 fixtures: an inactive location, a published booking policy row, the
+// three-state invitation lifecycle (pending/expired/revoked, each with a
+// fixed plaintext token so specs can replay them), and cash-due /
+// partially-collected / foreign-location booking orders with append-only
+// cash evidence. Every id is fixed and every mutation is an upsert keyed by
+// that id (or a unique business+idempotencyKey pair), so reruns update the
+// same rows in place instead of creating duplicates.
+async function seedWorkspaceSecurityFixtures(input: {
+  business: { id: string }
+  castries: { id: string; slug: string }
+  rodneyBay: { id: string; slug: string }
+  owner: { id: string }
+  customer: { id: string }
+  memberships: Map<string, string>
+  offeringId: string
+}) {
+  const { business, castries, rodneyBay, owner, customer, memberships, offeringId } = input
+  const now = new Date()
+
+  await prisma.location.upsert({
+    where: { businessId_slug: { businessId: business.id, slug: 'retired' } },
+    create: { id: workspaceSecurityFixtures.inactiveLocationId, businessId: business.id, slug: 'retired', name: 'E2E Retired Location', address: '9 Test Street, Castries', isActive: false },
+    update: { name: 'E2E Retired Location', isActive: false },
+  })
+
+  const staffCastriesOnly = workspaceSecurityFixtures.staffCastriesOnly
+  const staffCastriesUser = await upsertUser(staffCastriesOnly.userId, staffCastriesOnly.email, staffCastriesOnly.name, Role.USER)
+  const staffCastriesMembership = await prisma.businessMembership.upsert({
+    where: { businessId_userId: { businessId: business.id, userId: staffCastriesUser.id } },
+    create: { id: staffCastriesOnly.membershipId, businessId: business.id, userId: staffCastriesUser.id, role: 'STAFF' },
+    update: { role: 'STAFF', active: true },
+  })
+  await prisma.locationAssignment.upsert({ where: { membershipId_locationId: { membershipId: staffCastriesMembership.id, locationId: castries.id } }, create: { membershipId: staffCastriesMembership.id, locationId: castries.id }, update: {} })
+  await prisma.staffQualification.upsert({ where: { membershipId_offeringId_locationId: { membershipId: staffCastriesMembership.id, offeringId, locationId: castries.id } }, create: { membershipId: staffCastriesMembership.id, offeringId, locationId: castries.id }, update: { active: true } })
+
+  await prisma.businessPolicy.upsert({
+    where: { businessId: business.id },
+    create: { businessId: business.id, currency: 'XCD', timezone: 'America/St_Lucia', cancellationPolicyText: 'Cancel or reschedule at least 24 hours before your appointment.' },
+    update: { currency: 'XCD', timezone: 'America/St_Lucia', cancellationPolicyText: 'Cancel or reschedule at least 24 hours before your appointment.' },
+  })
+
+  const invitations = workspaceSecurityFixtures.invitations
+  const pendingExpiresAt = pendingInvitationWindow(now).expiresAt
+  const expiredExpiresAt = expiredInvitationWindow(now).expiresAt
+
+  const pending = await prisma.businessInvitation.upsert({
+    where: { id: invitations.pending.id },
+    create: { id: invitations.pending.id, businessId: business.id, normalizedEmail: invitations.pending.email, invitedName: 'E2E Pending Invitee', role: 'STAFF', tokenHash: hashToken(invitations.pending.token), expiresAt: pendingExpiresAt, inviterId: owner.id, activeKey: 'booktrix-e2e-active-key-pending' },
+    update: { tokenHash: hashToken(invitations.pending.token), expiresAt: pendingExpiresAt, acceptedAt: null, revokedAt: null, activeKey: 'booktrix-e2e-active-key-pending' },
+  })
+  await prisma.businessInvitationLocation.upsert({ where: { invitationId_locationId: { invitationId: pending.id, locationId: castries.id } }, create: { invitationId: pending.id, locationId: castries.id }, update: {} })
+
+  const expired = await prisma.businessInvitation.upsert({
+    where: { id: invitations.expired.id },
+    create: { id: invitations.expired.id, businessId: business.id, normalizedEmail: invitations.expired.email, invitedName: 'E2E Expired Invitee', role: 'STAFF', tokenHash: hashToken(invitations.expired.token), expiresAt: expiredExpiresAt, inviterId: owner.id, activeKey: null },
+    update: { tokenHash: hashToken(invitations.expired.token), expiresAt: expiredExpiresAt, acceptedAt: null, revokedAt: null, activeKey: null },
+  })
+  await prisma.businessInvitationLocation.upsert({ where: { invitationId_locationId: { invitationId: expired.id, locationId: castries.id } }, create: { invitationId: expired.id, locationId: castries.id }, update: {} })
+
+  const revoked = await prisma.businessInvitation.upsert({
+    where: { id: invitations.revoked.id },
+    create: { id: invitations.revoked.id, businessId: business.id, normalizedEmail: invitations.revoked.email, invitedName: 'E2E Revoked Invitee', role: 'STAFF', tokenHash: hashToken(invitations.revoked.token), expiresAt: pendingExpiresAt, revokedAt: now, inviterId: owner.id, activeKey: null },
+    update: { tokenHash: hashToken(invitations.revoked.token), expiresAt: pendingExpiresAt, revokedAt: now, acceptedAt: null, activeKey: null },
+  })
+  await prisma.businessInvitationLocation.upsert({ where: { invitationId_locationId: { invitationId: revoked.id, locationId: castries.id } }, create: { invitationId: revoked.id, locationId: castries.id }, update: {} })
+
+  const staffMembershipId = memberships.get('STAFF')!
+  const accountsMembershipId = memberships.get('ACCOUNTS')!
+  const cashOrders = workspaceSecurityFixtures.cashOrders
+
+  async function upsertCashOrder(fixture: { id: string; cashDueCents: number }, locationId: string, daysAhead: number) {
+    const { startsAt, endsAt } = stLuciaFutureAppointment(now, daysAhead)
+    return prisma.bookingOrder.upsert({
+      where: { id: fixture.id },
+      create: {
+        id: fixture.id, businessId: business.id, customerId: customer.id, idempotencyKey: `${fixture.id}-idempotency`,
+        status: 'CONFIRMED', paymentChoice: 'CASH', subtotalCents: fixture.cashDueCents, paidCents: 0, dueOnlineCents: 0, dueAtAppointmentCents: fixture.cashDueCents,
+        Segments: { create: [{ offeringId, locationId, membershipId: staffMembershipId, startsAt, endsAt, occupiedStartsAt: startsAt, occupiedEndsAt: endsAt, attendeeCount: 1, priceCents: fixture.cashDueCents, confirmationMode: 'AUTOMATIC', status: 'CONFIRMED' }] },
+      },
+      update: { status: 'CONFIRMED', paymentChoice: 'CASH', subtotalCents: fixture.cashDueCents, dueAtAppointmentCents: fixture.cashDueCents },
+    })
+  }
+
+  await upsertCashOrder(cashOrders.dueCastries, castries.id, 2)
+  const partialOrder = await upsertCashOrder(cashOrders.partialCastries, castries.id, 3)
+  await upsertCashOrder(cashOrders.dueRodneyBay, rodneyBay.id, 4)
+
+  await prisma.cashCollection.upsert({
+    where: { businessId_idempotencyKey: { businessId: business.id, idempotencyKey: `${cashOrders.partialCastries.id}-collection` } },
+    create: { id: `${cashOrders.partialCastries.id}-collection`, businessId: business.id, orderId: partialOrder.id, locationId: castries.id, collectorId: accountsMembershipId, kind: 'COLLECTION', amountCents: cashOrders.partialCastries.cashCollectedCents, idempotencyKey: `${cashOrders.partialCastries.id}-collection`, note: 'Partial cash collected at checkout.' },
+    update: {},
+  })
 }
 
 async function main() { await preflightFixtureOwnership(); for (const fixture of demoBusinesses) await seedDemoBusiness(fixture); await seedBookingJourneyFixtures(); console.info('Booktrix Phase 2 E2E fixtures are ready.') }

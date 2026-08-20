@@ -47,7 +47,7 @@ export function LocationHoursEditor({ location, action }: { location: ManagedLoc
         {weekdays.map((day, weekday) => {
           const hours = location.hours.find((hour) => hour.weekday === weekday)
           return (
-            <fieldset key={day} className="grid gap-3 rounded-2xl border border-sand-200 bg-white p-3 sm:grid-cols-[8rem_1fr_1fr]" aria-describedby={errors?.[`hours.${weekday}.opensAt`] || errors?.[`hours.${weekday}.closesAt`] ? `hours-${weekday}-error` : undefined}>
+            <fieldset key={day} className="grid gap-3 rounded-2xl border border-sand-200 bg-white p-3 sm:grid-cols-[8rem_minmax(0,1fr)_minmax(0,1fr)]" aria-describedby={errors?.[`hours.${weekday}.opensAt`] || errors?.[`hours.${weekday}.closesAt`] ? `hours-${weekday}-error` : undefined}>
               <legend className="sr-only">{day}</legend>
               <label className="flex items-center gap-2 text-sm font-semibold text-cocoa-900">
                 <input type="checkbox" name={`hours.${weekday}.closed`} defaultChecked={initialClosed[weekday]} onChange={(event) => setClosed((current) => current.map((value, index) => index === weekday ? event.target.checked : value))} />

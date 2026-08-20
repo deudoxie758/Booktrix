@@ -24,7 +24,9 @@ Availability is calculated in `America/St_Lucia`. Checkout holds reserve the com
 - `npm run test:e2e`
 - `npm run verify`
 
-`npm run db:seed` intentionally replaces seeded data and creates representative customer, owner, manager, accounts, and staff access. Never run it against data that must be retained. `npm run db:seed:e2e` only upserts records under the `booktrix-e2e-*` namespace.
+`npm run db:seed` intentionally replaces seeded data and creates representative customer, owner, manager, accounts, and staff access. Never run it against data that must be retained. `npm run db:seed:e2e` only upserts records under the `booktrix-e2e-*` namespace, and is safe to rerun against the same database.
+
+`e2e/business-workspace-security.spec.ts` and `e2e/business-workspace-responsive.spec.ts` are the cross-role authorization and responsive/accessibility gate for the whole business workspace: every business role's URL and mutation boundaries, the team-invitation lifecycle (pending/expired/revoked), stale-business-selection recovery, and 320px/tablet/desktop layout for Overview, Locations, Team, Finance, and Settings.
 
 WiPay is not live in Phase 2. Payment calls must use `modules/payments`; the legacy Stripe endpoint is compatibility-only and returns `503` when unconfigured.
 
