@@ -9,10 +9,5 @@ export default async function HomePage() {
 		redirect('/join-us')
 	}
 
-	const role = (session.user as any)?.role
-	if (role === 'ADMIN') {
-		redirect('/admin')
-	}
-
-	redirect('/dashboard')
+	redirect('/api/auth/redirect')
 }

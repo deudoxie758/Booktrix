@@ -8,7 +8,7 @@ test('public marketplace has no horizontal overflow at 320px', async ({ page }) 
 })
 
 test('keyboard focus reaches public actions', async ({ page }, testInfo) => {
-	test.skip(testInfo.project.name === 'mobile', 'Hardware Tab navigation is a desktop interaction')
+	test.skip(testInfo.project.name !== 'desktop', 'Hardware Tab navigation is verified in the desktop project')
 	await page.goto('/')
 	await page.keyboard.press('Tab')
 	await expect(page.locator(':focus')).toBeVisible()

@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import type { BusinessRole } from '@prisma/client'
+import { cookies } from 'next/headers'
 import { requireActor } from '@/modules/identity/session'
+import { selectedBusinessCookie } from './workspace-selection'
 
 type ContextCandidate = { businessId: string; active: boolean; locationIds: string[] }
 
@@ -11,6 +13,11 @@ export function selectAuthorizedContext(candidates: ContextCandidate[], requeste
 	const locationId = requestedLocationId ?? membership.locationIds[0] ?? null
 	if (locationId && !membership.locationIds.includes(locationId)) throw new Error('LOCATION_ACCESS_DENIED')
 	return { businessId: membership.businessId, locationId }
+}
+
+export function preferredBusinessId(candidates: ContextCandidate[], requestedBusinessId?: string, storedBusinessId?: string) {
+	if (requestedBusinessId) return requestedBusinessId
+	return storedBusinessId && candidates.some((candidate) => candidate.active && candidate.businessId === storedBusinessId) ? storedBusinessId : undefined
 }
 
 export async function resolveBusinessContext(actorId: string, requestedBusinessId?: string, requestedLocationId?: string) {
@@ -24,7 +31,8 @@ export async function resolveBusinessContext(actorId: string, requestedBusinessI
 		businessId: membership.businessId, active: membership.active,
 		locationIds: membership.role === 'OWNER' ? membership.business.Locations.map(({ id }) => id) : membership.Locations.map(({ locationId }) => locationId),
 	}))
-	const selected = selectAuthorizedContext(candidates, requestedBusinessId, requestedLocationId)
+	const selectedBusinessId = preferredBusinessId(candidates, requestedBusinessId, cookies().get(selectedBusinessCookie)?.value)
+	const selected = selectAuthorizedContext(candidates, selectedBusinessId, requestedLocationId)
 	const membership = memberships.find((item) => item.businessId === selected.businessId)!
 	return { business: membership.business, membership, availableLocations: membership.business.Locations.filter((location) => candidates.find((item) => item.businessId === membership.businessId)?.locationIds.includes(location.id)), activeLocation: membership.business.Locations.find((location) => location.id === selected.locationId) ?? null }
 }

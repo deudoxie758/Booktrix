@@ -3,13 +3,14 @@ import Credentials from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
 import { prisma } from './prisma'
 import { compare } from 'bcryptjs'
+import { buildPostAuthRedirectUrl } from '@/modules/identity/post-auth'
 
 export const authOptions: NextAuthOptions = {
 	providers: [
-		GoogleProvider({
+		...(googleAuthIsConfigured() ? [GoogleProvider({
 			clientId: process.env.GOOGLE_CLIENT_ID || '',
 			clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-		}),
+		})] : []),
 		Credentials({
 			name: 'Credentials',
 			credentials: {
@@ -57,6 +58,11 @@ export const authOptions: NextAuthOptions = {
 	},
 
 	callbacks: {
+		async redirect({ url, baseUrl }) {
+			const candidate = new URL(url, baseUrl)
+			if (candidate.origin === new URL(baseUrl).origin && (candidate.pathname === '/' || candidate.pathname === '/api/auth/redirect' || candidate.pathname === '/join-us')) return candidate.toString()
+			return buildPostAuthRedirectUrl(url, baseUrl)
+		},
 		/**
 		 * BUG FIX: On Google sign-in, `user` object doesn't carry `role`
 		 * because it comes from the OAuth provider, not our DB.
@@ -105,4 +111,8 @@ export const authOptions: NextAuthOptions = {
 	// pages: {
 	// 	signOut: '/join-us',
 	// },
+}
+
+function googleAuthIsConfigured() {
+	return Boolean(process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim())
 }

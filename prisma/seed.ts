@@ -6,6 +6,16 @@ const prisma = new PrismaClient()
 
 async function main() {
 	// Clear existing data
+	await prisma.bookingSegment.deleteMany()
+	await prisma.bookingOrder.deleteMany()
+	await prisma.bookingHoldSegment.deleteMany()
+	await prisma.bookingHold.deleteMany()
+	await prisma.staffTimeOff.deleteMany()
+	await prisma.staffSchedule.deleteMany()
+	await prisma.locationHours.deleteMany()
+	await prisma.staffQualification.deleteMany()
+	await prisma.serviceLocation.deleteMany()
+	await prisma.serviceOffering.deleteMany()
 	await prisma.locationAssignment.deleteMany()
 	await prisma.businessApplication.deleteMany()
 	await prisma.businessSetup.deleteMany()
@@ -38,7 +48,7 @@ async function main() {
 	const owner5 = await prisma.user.create({
 		data: { email: 'owner5@example.com', name: 'Marcus Thompson', hashedPassword: password, role: Role.OWNER },
 	})
-	await prisma.user.create({
+	const customer = await prisma.user.create({
 		data: { email: 'customer@example.com', name: 'John Customer', hashedPassword: password, role: Role.USER },
 	})
 	await prisma.user.create({
@@ -489,6 +499,27 @@ async function main() {
 			}
 		}
 	}
+
+	// ─── Deterministic Booktrix Phase 2 fixture ─────────────────────────────
+	const flagship = await prisma.business.findUniqueOrThrow({ where: { legacySpaId: spa1.id } })
+	await prisma.business.update({ where: { id: flagship.id }, data: { status: 'PUBLISHED' } })
+	await prisma.businessSetup.update({ where: { businessId: flagship.id }, data: { policiesAccepted: true, publicationReady: true } })
+	const castries = await prisma.location.findFirstOrThrow({ where: { businessId: flagship.id, slug: 'main' } })
+	const rodneyBay = await prisma.location.upsert({ where: { businessId_slug: { businessId: flagship.id, slug: 'rodney-bay' } }, create: { businessId: flagship.id, name: 'Rodney Bay Studio', slug: 'rodney-bay', address: 'Baywalk, Rodney Bay, Saint Lucia', phone: '+1 758-555-0110', isActive: true }, update: { name: 'Rodney Bay Studio', isActive: true } })
+	const legacyDeepTissue = await prisma.subservice.findFirstOrThrow({ where: { spaId: spa1.id, name: 'Deep Tissue Massage' } })
+	const legacyFacial = await prisma.subservice.findFirstOrThrow({ where: { spaId: spa1.id, name: 'Classic Facial' } })
+	const deepTissue = await prisma.serviceOffering.upsert({ where: { legacySubserviceId: legacyDeepTissue.id }, create: { businessId: flagship.id, legacySubserviceId: legacyDeepTissue.id, category: 'Massage', name: 'Deep Tissue Massage', description: legacyDeepTissue.description, durationMinutes: 60, preparationMinutes: 10, cleanupMinutes: 10, priceCents: 12000, confirmationMode: 'AUTOMATIC', allowFullPayment: true, allowDeposit: false, allowCash: true }, update: { active: true, confirmationMode: 'AUTOMATIC', allowFullPayment: true, allowDeposit: false, allowCash: true } })
+	const classicFacial = await prisma.serviceOffering.upsert({ where: { legacySubserviceId: legacyFacial.id }, create: { businessId: flagship.id, legacySubserviceId: legacyFacial.id, category: 'Skin care', name: 'Classic Facial', description: legacyFacial.description, durationMinutes: 45, cleanupMinutes: 10, priceCents: 8500, confirmationMode: 'MANUAL', allowFullPayment: true, allowDeposit: true, allowCash: true, depositKind: 'PERCENTAGE', depositValue: 25 }, update: { active: true, confirmationMode: 'MANUAL', allowFullPayment: true, allowDeposit: true, allowCash: true, depositKind: 'PERCENTAGE', depositValue: 25 } })
+	for (const offering of [deepTissue, classicFacial]) for (const location of [castries, rodneyBay]) await prisma.serviceLocation.upsert({ where: { offeringId_locationId: { offeringId: offering.id, locationId: location.id } }, create: { offeringId: offering.id, locationId: location.id }, update: { active: true } })
+	const staffMembership = await prisma.businessMembership.findUniqueOrThrow({ where: { businessId_userId: { businessId: flagship.id, userId: staff.id } } })
+	for (const offering of [deepTissue, classicFacial]) for (const location of [castries, rodneyBay]) await prisma.staffQualification.upsert({ where: { membershipId_offeringId_locationId: { membershipId: staffMembership.id, offeringId: offering.id, locationId: location.id } }, create: { membershipId: staffMembership.id, offeringId: offering.id, locationId: location.id }, update: { active: true } })
+	for (const location of [castries, rodneyBay]) for (let weekday = 0; weekday < 7; weekday += 1) {
+		await prisma.locationHours.upsert({ where: { locationId_weekday_startMinute_endMinute: { locationId: location.id, weekday, startMinute: 540, endMinute: 1020 } }, create: { locationId: location.id, weekday, startMinute: 540, endMinute: 1020 }, update: {} })
+		await prisma.staffSchedule.upsert({ where: { membershipId_locationId_weekday_startMinute_endMinute: { membershipId: staffMembership.id, locationId: location.id, weekday, startMinute: 540, endMinute: 1020 } }, create: { membershipId: staffMembership.id, locationId: location.id, weekday, startMinute: 540, endMinute: 1020 }, update: {} })
+	}
+	await prisma.staffTimeOff.deleteMany({ where: { membershipId: staffMembership.id, reason: 'E2E fixture' } })
+	await prisma.staffTimeOff.create({ data: { membershipId: staffMembership.id, locationId: rodneyBay.id, startsAt: new Date('2030-01-15T13:00:00.000Z'), endsAt: new Date('2030-01-15T17:00:00.000Z'), reason: 'E2E fixture' } })
+	await prisma.bookingHold.upsert({ where: { token: 'expired-fixture' }, create: { token: 'expired-fixture', idempotencyKey: 'e2e-expired-fixture', businessId: flagship.id, customerId: customer.id, checkoutIdentity: 'e2e-expired', expiresAt: new Date('2020-01-01T00:00:00.000Z') }, update: { consumedAt: null, expiresAt: new Date('2020-01-01T00:00:00.000Z') } })
 
 	console.log('✅ Seeded successfully!')
 	console.log('\n📊 Summary:')
