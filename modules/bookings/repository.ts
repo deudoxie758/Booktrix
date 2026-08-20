@@ -53,9 +53,21 @@ const samePersistedSegment = (derived: HoldRecord['segments'][number], held: Hol
   && derived.attendeeCount === held.attendeeCount
   && derived.priceCents === held.priceCents
 
+// Order creation re-acquires the hold's scheduling locks and revalidates
+// availability (see revalidateHold below) before writing -- the same
+// sequential, per-day-bucket round trips that bookingHoldTransactionOptions
+// (modules/scheduling/holds.ts) already budgets 20s for. Without matching
+// that budget here, this transaction inherited Prisma's 5s default and
+// expired mid-transaction under real hosted-database latency.
+export const bookingOrderTransactionOptions = {
+  isolationLevel: 'ReadCommitted' as const,
+  maxWait: 20_000,
+  timeout: 20_000,
+}
+
 export function createPrismaOrderStore(client: Client = prisma): BookingOrderStore {
   return {
-    transaction: (work) => prisma.$transaction((tx) => work(createPrismaOrderStore(tx)), { isolationLevel: 'ReadCommitted' }),
+    transaction: (work) => prisma.$transaction((tx) => work(createPrismaOrderStore(tx)), bookingOrderTransactionOptions),
     findByIdempotencyKey: async (key) => {
       const order = await client.bookingOrder.findUnique({ where: { idempotencyKey: key }, include: { Segments: true, PaymentRequest: true } })
       return order ? mappedOrder(order) : null
