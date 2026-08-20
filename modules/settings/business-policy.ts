@@ -119,6 +119,16 @@ export type BusinessSettingsRepository = {
   isSlugTaken(input: { slug: string; excludeBusinessId: string }): Promise<boolean>
   saveProfile(input: { actorId: string; businessId: string; values: NormalizedBusinessProfile }): Promise<BusinessProfileRecord>
   savePolicy(input: { actorId: string; businessId: string; values: NormalizedBusinessPolicy }): Promise<BusinessPolicyRecord>
+  /**
+   * Mirrors PublicationReadinessTransaction.createAudit's shape. Exposed as
+   * its own repository capability (matching the audited-mutation pattern
+   * used across modules/locations/management.ts and
+   * modules/finance/cash-collection.ts), even though the Prisma
+   * implementation of saveProfile/savePolicy writes its own audit row
+   * transactionally alongside the entity write rather than routing through
+   * this method — see the comment on createPrismaBusinessSettingsRepository.
+   */
+  createAudit(input: { businessId: string; actorId: string; action: string; details: Record<string, unknown> }): Promise<void>
 }
 
 export type ProfileMutationResult = { ok: true; profile: BusinessProfileRecord } | { ok: false; error: string; fieldErrors?: Record<string, string> }
@@ -175,16 +185,28 @@ export function createPrismaBusinessSettingsRepository(client: typeof prisma): B
       const existing = await client.business.findUnique({ where: { slug }, select: { id: true } })
       return Boolean(existing && existing.id !== excludeBusinessId)
     },
-    async saveProfile({ businessId, values }) {
-      return client.business.update({ where: { id: businessId }, data: values, select: { id: true, name: true, slug: true, description: true, phone: true, email: true } })
-    },
-    async savePolicy({ businessId, values }) {
-      // A plain upsert of the single policy row — this never touches
-      // ServiceOffering, BookingOrder, or BookingSegment tables, so existing
-      // service confirmation modes, buffers, cancellation lead times, and
-      // historical bookings are never rewritten by a new business-wide default.
-      const policy = await client.businessPolicy.upsert({ where: { businessId }, create: { businessId, ...values }, update: values })
+    // Saves the profile and writes its BUSINESS_PROFILE_UPDATED audit row in
+    // the same transaction (mirrors modules/locations/management.ts's
+    // setActiveWithAudit) — the write and its audit evidence commit or roll
+    // back together; there is never a persisted change without an audit row.
+    saveProfile: ({ actorId, businessId, values }) => client.$transaction(async (transaction) => {
+      const profile = await transaction.business.update({ where: { id: businessId }, data: values, select: { id: true, name: true, slug: true, description: true, phone: true, email: true } })
+      await transaction.auditLog.create({ data: { actorId, actorRole: 'OWNER', action: 'BUSINESS_PROFILE_UPDATED', details: { businessId, ...values } } })
+      return profile
+    }),
+    // A plain upsert of the single policy row — this never touches
+    // ServiceOffering, BookingOrder, or BookingSegment tables, so existing
+    // service confirmation modes, buffers, cancellation lead times, and
+    // historical bookings are never rewritten by a new business-wide default.
+    // The upsert and its BUSINESS_POLICY_UPDATED audit row are written in the
+    // same transaction.
+    savePolicy: ({ actorId, businessId, values }) => client.$transaction(async (transaction) => {
+      const policy = await transaction.businessPolicy.upsert({ where: { businessId }, create: { businessId, ...values }, update: values })
+      await transaction.auditLog.create({ data: { actorId, actorRole: 'OWNER', action: 'BUSINESS_POLICY_UPDATED', details: { businessId, ...values } } })
       return policy
+    }),
+    async createAudit({ businessId, actorId, action, details }) {
+      await client.auditLog.create({ data: { actorId, actorRole: 'OWNER', action, details: { businessId, ...details } } })
     },
   }
 }

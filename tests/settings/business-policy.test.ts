@@ -69,6 +69,9 @@ function fixture() {
       audits.push({ businessId, actorId: 'owner-a', action: 'BUSINESS_POLICY_UPDATED' })
       return { businessId, ...values }
     },
+    async createAudit({ businessId, actorId, action }) {
+      audits.push({ businessId, actorId, action })
+    },
   }
 
   return { repository, businesses, policies, existingServiceOfferings, existingBookingSegments, audits }
