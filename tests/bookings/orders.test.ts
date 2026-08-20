@@ -46,25 +46,27 @@ describe('booking orders', () => {
     expect(order).toMatchObject({ subtotalCents: 12000, dueOnlineCents: 0, dueAtAppointmentCents: 12000 })
   })
 
+  const now = () => new Date('2026-08-20T13:00:00.000Z')
+
   it('returns the original order for a repeated idempotency key', async () => {
     const store = memoryOrderStore()
     const input = { holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'same', paymentChoice: 'CASH' as const }
-    const first = await createBookingOrder(input, { store })
-    const second = await createBookingOrder(input, { store })
+    const first = await createBookingOrder(input, { store, now })
+    const second = await createBookingOrder(input, { store, now })
     expect(second.id).toBe(first.id)
   })
 
   it('rejects an idempotency key reused by another customer, hold, or payment choice', async () => {
     const store = memoryOrderStore()
-    await createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'owned', paymentChoice: 'CASH' }, { store })
-    await expect(createBookingOrder({ holdToken: 'other-hold', customerId: 'customer-2', idempotencyKey: 'owned', paymentChoice: 'FULL' }, { store }))
+    await createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'owned', paymentChoice: 'CASH' }, { store, now })
+    await expect(createBookingOrder({ holdToken: 'other-hold', customerId: 'customer-2', idempotencyKey: 'owned', paymentChoice: 'FULL' }, { store, now }))
       .rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' })
   })
 
   it('rolls back when the hold was already conditionally consumed', async () => {
     const store = memoryOrderStore()
     store.consumeHoldIfActive = async () => false
-    await expect(createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'consumed', paymentChoice: 'CASH' }, { store }))
+    await expect(createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'consumed', paymentChoice: 'CASH' }, { store, now }))
       .rejects.toMatchObject({ code: 'HOLD_EXPIRED' })
   })
 
@@ -77,8 +79,8 @@ describe('booking orders', () => {
       return true
     }
     const results = await Promise.allSettled([
-      createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'concurrent-one', paymentChoice: 'CASH' }, { store }),
-      createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'concurrent-two', paymentChoice: 'CASH' }, { store }),
+      createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'concurrent-one', paymentChoice: 'CASH' }, { store, now }),
+      createBookingOrder({ holdToken: 'hold-1', customerId: 'customer-1', idempotencyKey: 'concurrent-two', paymentChoice: 'CASH' }, { store, now }),
     ])
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
     expect(results.find((result) => result.status === 'rejected')).toMatchObject({ reason: { code: 'HOLD_EXPIRED' } })

@@ -11,13 +11,13 @@ async function signIn(page: import('@playwright/test').Page, email: string, call
 test('owner creates a one-time invitation and an existing account accepts it', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'Acceptance mutates the shared seeded account once.')
   await signIn(page, 'owner.e2e@booktrix.test')
-  await expect(page.getByRole('heading', { name: 'Team' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Team', exact: true })).toBeVisible()
 
   const form = page.getByRole('form', { name: 'Invite team member' })
   await form.getByLabel('Name').fill('E2E Customer Invitee')
   await form.getByLabel('Email').fill('customer.e2e@booktrix.test')
   await form.getByLabel('Role').selectOption('STAFF')
-  await form.getByLabel('E2E Castries Studio').check()
+  await form.getByLabel('E2E Castries Studio', { exact: true }).check()
   await form.getByRole('button', { name: 'Send invitation' }).click()
 
   const status = form.getByRole('status')
@@ -48,7 +48,7 @@ test('Manager invitation roles remain Staff-only', async ({ page }) => {
 test('team management does not overflow at 320 pixels', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 })
   await signIn(page, 'manager.e2e@booktrix.test')
-  await expect(page.getByRole('heading', { name: 'Team' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Team', exact: true })).toBeVisible()
   const overflows = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
   expect(overflows).toBe(false)
 })

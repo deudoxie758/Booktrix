@@ -38,6 +38,15 @@ describe('post-auth routing', () => {
 		})).toBe('/business/schedule')
 	})
 
+	it('preserves a manager team callback (Team is a page Managers legitimately navigate to)', () => {
+		expect(resolveSafePostAuthDestination({
+			callbackUrl: '/business/team',
+			baseUrl: 'https://booktrix.test',
+			fallback: '/business/calendar',
+			identity: { platformRole: 'EMPLOYEE', memberships: [{ role: 'MANAGER' }] },
+		})).toBe('/business/team')
+	})
+
 	it('uses the selected workspace membership instead of aggregating roles across businesses', () => {
 		const identity = {
 			platformRole: 'EMPLOYEE' as const,

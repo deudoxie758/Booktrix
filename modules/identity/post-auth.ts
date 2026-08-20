@@ -51,7 +51,7 @@ function canUsePostAuthPath(pathname: string, { platformRole, memberships, selec
 
 	const role = selectedWorkspaceRole({ memberships, selectedMembership })
 	if (role === 'OWNER') return pathMatches(pathname, '/business')
-	if (role === 'MANAGER') return pathname === '/business' || ['/business/calendar', '/business/customers', '/business/services', '/business/locations'].some((path) => pathMatches(pathname, path))
+	if (role === 'MANAGER') return pathname === '/business' || ['/business/calendar', '/business/customers', '/business/services', '/business/locations', '/business/team'].some((path) => pathMatches(pathname, path))
 	if (role === 'ACCOUNTS') return pathname === '/business' || ['/business/finance', '/business/locations'].some((path) => pathMatches(pathname, path))
 	if (role === 'STAFF') return pathname === '/business' || ['/business/schedule', '/business/customers'].some((path) => pathMatches(pathname, path))
 	return false

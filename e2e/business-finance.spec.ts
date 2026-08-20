@@ -11,9 +11,13 @@ async function signIn(page: import('@playwright/test').Page, email: string, call
 test('owner sees the finance ledger with truthful pending-provider copy and no cash-collection claims', async ({ page }) => {
   await signIn(page, 'owner.e2e@booktrix.test')
   await expect(page.getByRole('heading', { name: 'Finance', exact: true })).toBeVisible()
-  await expect(page.getByText(/no live payment provider is connected/i)).toBeVisible()
-  await expect(page.getByText('Booked revenue')).toBeVisible()
-  await expect(page.getByText('Cash collected')).toBeVisible()
+  await expect(page.getByText(/no live payment provider is connected yet\. these amounts are provider-neutral/i)).toBeVisible()
+  // Scoped to the summary metrics region: the ledger below can legitimately
+  // contain rows with their own "Record cash collected" controls and cash
+  // evidence history whose text also contains these phrases as substrings.
+  const summary = page.getByLabel('Finance summary')
+  await expect(summary.getByText('Booked revenue', { exact: true })).toBeVisible()
+  await expect(summary.getByText('Cash collected', { exact: true })).toBeVisible()
 })
 
 test('accounts can filter the ledger and the export link preserves the applied filters', async ({ page }) => {
@@ -44,10 +48,18 @@ test('staff cannot reach the finance workspace', async ({ page }) => {
   expect(response?.ok()).toBeFalsy()
 })
 
-test('the CSV export requires authentication and returns a CSV attachment for an authorized actor', async ({ page, context, browser }) => {
-  const anonymous = await browser.newContext()
-  const anonymousResponse = await anonymous.request.get('/business/finance/export')
-  expect(anonymousResponse.ok()).toBeFalsy()
+test('the CSV export requires authentication and returns a CSV attachment for an authorized actor', async ({ page, context, browser, baseURL }) => {
+  const anonymous = await browser.newContext({ baseURL })
+  // `/business/*` is protected by next-auth middleware, which redirects an
+  // unauthenticated request to `/auth/sign-in` rather than letting the route
+  // handler's own 401 ever run. Playwright's APIRequestContext follows
+  // redirects by default, so asserting on `.ok()` alone would only ever see
+  // the (200) sign-in page — disable redirects and assert the redirect
+  // itself, which is the actual denial.
+  const anonymousResponse = await anonymous.request.get('/business/finance/export', { maxRedirects: 0 })
+  expect(anonymousResponse.status()).toBeGreaterThanOrEqual(300)
+  expect(anonymousResponse.status()).toBeLessThan(400)
+  expect(anonymousResponse.headers()['location']).toContain('/auth/sign-in')
   await anonymous.close()
 
   await signIn(page, 'accounts.e2e@booktrix.test')

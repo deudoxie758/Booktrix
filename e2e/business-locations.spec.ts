@@ -24,7 +24,7 @@ test('manager adds and deactivates an authorized location', async ({ page }) => 
   await expect(form.getByRole('status')).toHaveText('Location added successfully.')
 
   await page.reload()
-  const heading = page.getByRole('heading', { name })
+  const heading = page.getByRole('heading', { name, exact: true })
   await expect(heading).toBeVisible()
   const card = heading.locator('xpath=ancestor::article')
   page.once('dialog', (dialog) => dialog.accept())
