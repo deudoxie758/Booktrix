@@ -9,6 +9,11 @@ import { PublicHeader } from '@/components/shells/PublicHeader'
 describe('PublicHeader', () => {
   beforeEach(() => signOut.mockReset())
 
+  it('presents the Booktrx public wordmark', () => {
+    render(<PublicHeader signedIn={false} />)
+    expect(screen.getByRole('link', { name: /booktrx/i })).toHaveAttribute('href', '/')
+  })
+
   it('always sends a signed-in person to their account hub', () => {
     render(<PublicHeader signedIn />)
     expect(screen.getByRole('link', { name: /my account/i })).toHaveAttribute('href', '/profile')

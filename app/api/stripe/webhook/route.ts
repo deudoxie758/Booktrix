@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
 	if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
 		return NextResponse.json({ error: 'Legacy Stripe integration is not configured' }, { status: 503 })
 	}
-	console.warn('Deprecated Stripe webhook invoked; Booktrix payment providers must use modules/payments')
+	console.warn('Deprecated Stripe webhook invoked; Booktrx payment providers must use modules/payments')
 	const sig = req.headers.get('stripe-signature') || ''
 	let event: Stripe.Event
 	const buf = await req.text()

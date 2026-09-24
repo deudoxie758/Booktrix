@@ -13,7 +13,7 @@ export function SearchFilters({ values, categories }: Props) {
     <label className="text-sm font-semibold text-cocoa-800">Category
       <select name="category" defaultValue={values.category ?? ''} className="mt-2 min-h-11 w-full rounded-2xl border border-sand-300 bg-cream-50 px-4 text-cocoa-950"><option value="">All categories</option>{categories.map((category) => <option key={category}>{category}</option>)}</select>
     </label>
-    <label className="text-sm font-semibold text-cocoa-800">Saint Lucian location
+    <label className="text-sm font-semibold text-cocoa-800">Location
       <select name="district" defaultValue={values.district ?? ''} className="mt-2 min-h-11 w-full rounded-2xl border border-sand-300 bg-cream-50 px-4 text-cocoa-950">{districts.map((district) => <option key={district} value={district}>{district || 'Anywhere'}</option>)}</select>
     </label>
     <button className="min-h-11 rounded-full bg-cocoa-900 px-6 text-sm font-semibold text-white">Search</button>

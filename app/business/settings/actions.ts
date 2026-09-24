@@ -17,7 +17,7 @@ export type PublicationActionResult =
 const messages: Record<string, string> = {
   SETTINGS_ACCESS_DENIED: 'You are not authorized to manage business settings.',
   PUBLICATION_NOT_READY: 'This business is not ready to publish yet. Resolve the readiness items below.',
-  PUBLICATION_STATUS_LOCKED: 'This business’s marketplace status is managed by Booktrix review, not from Settings.',
+  PUBLICATION_STATUS_LOCKED: 'This business’s marketplace status is managed by Booktrx review, not from Settings.',
 }
 
 function refreshSettingsConsumers(businessSlug: string) {

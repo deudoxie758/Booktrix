@@ -40,7 +40,7 @@ export default function Navigation({ session }: { session: any }) {
 							<path d='M60 140 Q80 155 100 155 Q120 155 140 140' strokeWidth='3' />
 						</svg>
 						<div>
-							<div className='text-2xl font-bold text-gray-900'>Booktrix</div>
+							<div className='text-2xl font-bold text-gray-900'>Booktrx</div>
 							<div className='text-xs text-gray-500 -mt-1'>Service Center</div>
 						</div>
 					</Link>

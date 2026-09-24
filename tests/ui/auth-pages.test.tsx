@@ -10,7 +10,7 @@ vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams('
 import SignInPage from '@/app/auth/sign-in/page'
 import SignUpPage from '@/app/auth/signup/page'
 
-describe('Booktrix authentication pages', () => {
+describe('Booktrx authentication pages', () => {
 	beforeEach(() => {
 		signIn.mockReset()
 	})
@@ -19,9 +19,9 @@ describe('Booktrix authentication pages', () => {
 		vi.unstubAllGlobals()
 	})
 
-	it('renders separate Booktrix sign-in and sign-up experiences without legacy branding', () => {
+	it('renders separate Booktrx sign-in and sign-up experiences without legacy branding', () => {
 		const { unmount } = render(<SignInPage />)
-		expect(screen.getByRole('heading', { name: /sign in to booktrix/i })).toBeVisible()
+		expect(screen.getByRole('heading', { name: /sign in to booktrx/i })).toBeVisible()
 		expect(screen.queryByText('FLO')).not.toBeInTheDocument()
 		expect(screen.queryByLabelText(/full name/i)).not.toBeInTheDocument()
 		expect(screen.queryByRole('button', { name: /google/i })).not.toBeInTheDocument()
@@ -29,7 +29,7 @@ describe('Booktrix authentication pages', () => {
 
 		unmount()
 		render(<SignUpPage />)
-		expect(screen.getByRole('heading', { name: /create your booktrix account/i })).toBeVisible()
+		expect(screen.getByRole('heading', { name: /create your booktrx account/i })).toBeVisible()
 		expect(screen.queryByText('FLO')).not.toBeInTheDocument()
 		expect(screen.getByLabelText(/full name/i)).toBeVisible()
 		expect(screen.queryByRole('button', { name: /google/i })).not.toBeInTheDocument()

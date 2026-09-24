@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { SiteChrome } from '@/components/shells/SiteChrome'
 
 export const metadata = {
-	title: 'Booktrix — Book local services beautifully',
+	title: 'Booktrx — Book local services beautifully',
 	description: 'Discover and book trusted service businesses across Saint Lucia.',
 }
 

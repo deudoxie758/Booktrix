@@ -10,7 +10,7 @@ export function BusinessApplicationForm({ action }: Props) {
 		<label className="text-sm font-semibold sm:col-span-2">Saint Lucia business address<input className={input} name="address" required /></label>
 		<label className="text-sm font-semibold sm:col-span-2">Industry<input className={input} name="industry" placeholder="Beauty, consulting, home services…" required /></label>
 		<label className="text-sm font-semibold sm:col-span-2">Services offered<textarea className={`${input} min-h-32 py-3`} name="serviceSummary" required minLength={20} /></label>
-		<label className="flex items-start gap-3 text-sm text-cocoa-700 sm:col-span-2"><input className="mt-1 h-4 w-4 accent-cocoa-900" name="termsAccepted" type="checkbox" required />I accept the Booktrix platform terms and confirm these business details are accurate.</label>
+		<label className="flex items-start gap-3 text-sm text-cocoa-700 sm:col-span-2"><input className="mt-1 h-4 w-4 accent-cocoa-900" name="termsAccepted" type="checkbox" required />I accept the Booktrx platform terms and confirm these business details are accurate.</label>
 		<button className="min-h-12 rounded-full bg-cocoa-900 px-6 font-semibold text-white sm:col-span-2" type="submit">Submit application</button>
 	</form>
 }

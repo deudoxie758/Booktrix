@@ -12,7 +12,7 @@ export async function persistBookingNotification(input: { event: BookingNotifica
       userId: input.userId,
       type: confirmed ? 'BOOKING_CONFIRMED' : 'BOOKING_REMINDER',
       title: confirmed ? 'Booking confirmed' : 'Booking received',
-      message: confirmed ? 'Your Booktrix appointment is confirmed.' : 'Your booking request was received.',
+      message: confirmed ? 'Your Booktrx appointment is confirmed.' : 'Your booking request was received.',
       data: { event: input.event, orderId: input.orderId },
     },
   })

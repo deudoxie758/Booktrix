@@ -231,7 +231,7 @@ export default function AdminPanel({ userRole }: { userRole: string }) {
               <div>
                 <p className='text-sm text-warm-600 font-semibold'>Administrator Control Center</p>
                 <h1 className='text-3xl font-bold text-gray-900'>Platform Administration</h1>
-                <p className='mt-2 text-sm text-gray-600 max-w-2xl'>Oversee users, review spa listings, and manage role-based access for the wider Booktrix platform.</p>
+                <p className='mt-2 text-sm text-gray-600 max-w-2xl'>Oversee users, review spa listings, and manage role-based access for the wider Booktrx platform.</p>
               </div>
               <div className='rounded-3xl border border-gray-200 bg-warm-50 px-4 py-3 text-sm text-warm-700'>Your role: {userRole}</div>
             </div>

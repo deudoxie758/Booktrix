@@ -4,7 +4,7 @@ import { SignInForm } from '@/app/auth/components/SignInForm'
 export default function SignInPage() {
 	return <AuthShell
 		eyebrow="Welcome back"
-		title="Sign in to Booktrix"
+		title="Sign in to Booktrx"
 		description="Return to your bookings, schedule, or business workspace."
 		asideTitle="Everything you need, in one place."
 		asideDescription="Manage appointments, discover trusted local services, and keep every visit connected to your account."
