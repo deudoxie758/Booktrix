@@ -92,7 +92,7 @@ export function createPrismaOrderStore(client: Client = prisma): BookingOrderSto
           start: segment.start,
           attendeeCount: segment.attendeeCount,
         })),
-      }, toSchedulingSnapshot(facts))
+      }, toSchedulingSnapshot(facts), { now })
       if (derived.length !== hold.segments.length || derived.some((segment, index) => !samePersistedSegment(segment, hold.segments[index]!))) {
         throw Object.assign(new Error('SLOT_UNAVAILABLE'), { code: 'SLOT_UNAVAILABLE' })
       }

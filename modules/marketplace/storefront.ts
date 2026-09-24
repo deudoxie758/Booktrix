@@ -4,6 +4,7 @@ export function getPublishedStorefront(slug: string) {
   return prisma.business.findFirst({
     where: { slug, status: 'PUBLISHED' },
     include: {
+      Policy: true,
       Locations: { where: { isActive: true }, orderBy: { name: 'asc' } },
       ServiceOfferings: {
         where: { active: true, Locations: { some: { active: true, location: { isActive: true } } } },

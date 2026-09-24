@@ -39,5 +39,5 @@ export default async function BookingPage({ params, searchParams }: { params: { 
     ...(offering.allowFullPayment ? ['FULL' as const] : []),
     ...(offering.allowDeposit ? ['DEPOSIT' as const] : []),
     ...(offering.allowCash ? ['CASH' as const] : []),
-  ]) })), professionals, selectedOfferingIds: selected, hold, authenticated: Boolean(actor), rescheduleOrderId: searchParams.reschedule }} /></div></main>
+  ]) })), professionals, selectedOfferingIds: selected, hold, authenticated: Boolean(actor), maximumAdvanceBookingDays: business.Policy?.maximumAdvanceBookingDays ?? 90, rescheduleOrderId: searchParams.reschedule }} /></div></main>
 }
