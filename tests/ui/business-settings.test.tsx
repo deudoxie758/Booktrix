@@ -13,7 +13,7 @@ const policy = {
 }
 
 describe('BusinessProfileForm', () => {
-  it('renders the Booktrix design system and labelled identity fields in a dedicated profile section', () => {
+  it('renders the Booktrx design system and labelled identity fields in a dedicated profile section', () => {
     const action = vi.fn()
     render(<BusinessProfileForm profile={profile} action={action} />)
 

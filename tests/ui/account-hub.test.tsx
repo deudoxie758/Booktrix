@@ -19,7 +19,7 @@ describe('AccountHub', () => {
   it('presents the customer account as the main account landing page', () => {
     render(<AccountHub hub={baseHub} />)
 
-    expect(screen.getByRole('heading', { name: /your booktrix account/i })).toBeVisible()
+    expect(screen.getByRole('heading', { name: /your booktrx account/i })).toBeVisible()
     expect(screen.getByRole('link', { name: /view all bookings/i })).toHaveAttribute('href', '/profile/bookings')
     expect(screen.getByRole('link', { name: /discover services/i })).toHaveAttribute('href', '/search')
   })
