@@ -22,6 +22,9 @@ export type ManagedLocation = {
   address: string | null
   phone: string | null
   email: string | null
+  latitude: number | null
+  longitude: number | null
+  coordinateSource: 'MANUAL' | null
   timezone: string
   isActive: boolean
   hours: NormalizedLocationHour[]
@@ -159,6 +162,9 @@ export function createPrismaLocationRepository(client: LocationRepositoryClient)
         address: row.address,
         phone: row.phone,
         email: row.email,
+        latitude: row.latitude === null ? null : Number(row.latitude),
+        longitude: row.longitude === null ? null : Number(row.longitude),
+        coordinateSource: row.coordinateSource === 'MANUAL' ? 'MANUAL' : null,
         timezone: row.timezone,
         isActive: row.isActive,
         hours: row.Hours.map(({ weekday, startMinute, endMinute }) => ({ weekday, startMinute, endMinute })),

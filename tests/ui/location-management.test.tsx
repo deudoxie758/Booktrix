@@ -15,6 +15,9 @@ const location: ManagedLocation = {
   phone: '+1 758 555 0100',
   email: 'castries@example.com',
   timezone: 'America/St_Lucia',
+  latitude: 14.0101,
+  longitude: -60.9875,
+  coordinateSource: 'MANUAL',
   isActive: true,
   hours: [
     { weekday: 1, startMinute: 540, endMinute: 1020 },
@@ -54,6 +57,8 @@ describe('location management roles and summaries', () => {
     expect(within(addForm).getByLabelText(/location name/i)).toBeRequired()
     expect(within(addForm).getByLabelText(/^slug/i)).toBeRequired()
     expect(within(addForm).getByLabelText(/^address/i)).toBeRequired()
+    expect(within(addForm).getByLabelText(/^latitude/i)).toBeVisible()
+    expect(within(addForm).getByLabelText(/^longitude/i)).toBeVisible()
     expect(within(addForm).getByLabelText(/^phone/i)).toBeVisible()
     expect(within(addForm).getByLabelText(/^email/i)).toBeVisible()
 

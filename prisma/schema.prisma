@@ -198,6 +198,9 @@ model Location {
     slug        String
     timezone    String               @default("America/St_Lucia")
     address     String?
+    latitude    Decimal?             @db.Decimal(9, 6)
+    longitude   Decimal?             @db.Decimal(9, 6)
+    coordinateSource String?         @db.VarChar(20)
     phone       String?
     email       String?
     businessHours Json?

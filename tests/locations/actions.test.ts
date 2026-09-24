@@ -35,6 +35,8 @@ function identityForm() {
   formData.set('name', 'Castries Studio')
   formData.set('slug', 'castries')
   formData.set('address', '1 High Street')
+  formData.set('latitude', '14.0101')
+  formData.set('longitude', '-60.9875')
   return formData
 }
 
@@ -77,5 +79,13 @@ describe('location server actions', () => {
 
     expect(result).toEqual({ ok: false, error: 'Invalid location' })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('passes optional coordinates to the location domain', async () => {
+    await createLocationAction(identityForm())
+
+    expect(mocks.createLocation).toHaveBeenCalledWith(expect.objectContaining({
+      values: expect.objectContaining({ latitude: 14.0101, longitude: -60.9875 }),
+    }))
   })
 })

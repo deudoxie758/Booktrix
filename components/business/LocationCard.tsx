@@ -71,6 +71,7 @@ export function LocationCard({ role, location, updateAction, hoursAction, active
           <p className="mt-2 text-sm text-cocoa-600">{location.address ?? 'Address not set'}</p>
           {location.phone ? <p className="mt-1 text-sm text-cocoa-600">{location.phone}</p> : null}
           {location.email ? <p className="mt-1 text-sm text-cocoa-600">{location.email}</p> : null}
+          {location.latitude !== null && location.longitude !== null ? <p className="mt-1 text-xs text-cocoa-500">Nearby search enabled</p> : null}
         </div>
         <StatusBadge tone={active ? 'success' : 'neutral'}>{active ? 'Active' : 'Inactive'}</StatusBadge>
       </div>

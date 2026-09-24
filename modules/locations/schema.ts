@@ -8,6 +8,8 @@ export type LocationValuesInput = {
   address: string
   phone?: string | null
   email?: string | null
+  latitude?: number | null
+  longitude?: number | null
   isActive?: boolean
 }
 
@@ -17,6 +19,9 @@ export type NormalizedLocationValues = {
   address: string
   phone: string | null
   email: string | null
+  latitude: number | null
+  longitude: number | null
+  coordinateSource: 'MANUAL' | null
   timezone: typeof LOCATION_TIMEZONE
   isActive: boolean
 }
@@ -62,6 +67,13 @@ const locationValuesSchema = z.object({
     return value.toLowerCase()
   }),
   isActive: z.boolean().optional().default(true),
+  latitude: z.number().min(-90, 'Latitude must be between -90 and 90.').max(90, 'Latitude must be between -90 and 90.').optional().nullable().default(null),
+  longitude: z.number().min(-180, 'Longitude must be between -180 and 180.').max(180, 'Longitude must be between -180 and 180.').optional().nullable().default(null),
+}).superRefine((values, context) => {
+  if ((values.latitude === null) !== (values.longitude === null)) {
+    const missing = values.latitude === null ? 'latitude' : 'longitude'
+    context.addIssue({ code: z.ZodIssueCode.custom, path: [missing], message: 'Enter both latitude and longitude, or leave both blank.' })
+  }
 })
 
 function zodFieldErrors(error: z.ZodError) {
@@ -84,6 +96,9 @@ export function parseLocationValues(input: LocationValuesInput): ValidationSucce
       address: parsed.data.address,
       phone: parsed.data.phone,
       email: parsed.data.email,
+      latitude: parsed.data.latitude,
+      longitude: parsed.data.longitude,
+      coordinateSource: parsed.data.latitude === null ? null : 'MANUAL',
       isActive: parsed.data.isActive,
       timezone: LOCATION_TIMEZONE,
     } as NormalizedLocationValues,
