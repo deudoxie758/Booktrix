@@ -74,3 +74,19 @@ test('seeded customer can open Booktrix booking history', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Bookings' })).toBeVisible()
   await expect(page.getByText(/coming up/i)).toBeVisible()
 })
+
+test('nearby search asks only after a click and preserves manual filters', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation'])
+  await context.setGeolocation({ latitude: 14.0101, longitude: -60.9875 })
+  await page.goto('/search?q=massage&category=Wellness&district=Castries')
+
+  await expect(page).not.toHaveURL(/latitude=/)
+  await page.getByRole('button', { name: /use my location/i }).click()
+
+  await expect(page).toHaveURL(/latitude=14\.0101/)
+  const url = new URL(page.url())
+  expect(url.searchParams.get('q')).toBe('massage')
+  expect(url.searchParams.get('category')).toBe('Wellness')
+  expect(url.searchParams.get('district')).toBe('Castries')
+  await expect(page.getByRole('status')).toContainText(/sorted by distance/i)
+})
