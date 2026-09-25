@@ -22,6 +22,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "admin:create": "node scripts/create_admin.js",
     "db:seed": "tsx prisma/seed.js",
+    "intake:purge": "tsx scripts/purge-sensitive-intake.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

@@ -1,6 +1,7 @@
 import { FinanceFilters } from '@/components/business/FinanceFilters'
 import { FinanceLedger } from '@/components/business/FinanceLedger'
 import { FinanceSummary } from '@/components/business/FinanceSummary'
+import { PaymentConnectionStatus } from '@/components/business/PaymentConnectionStatus'
 import { loadFinanceLedger } from '@/modules/finance/ledger'
 import { requireWorkspaceRole } from '@/modules/organizations/context'
 import { recordCashCollectionAction } from './actions'
@@ -30,6 +31,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Fina
       <p className="mt-2 max-w-3xl text-cocoa-600">Canonical booking revenue, cash reconciliation, and pending online-payment requests for your authorized locations. No live payment provider is connected yet — full and deposit online amounts are pending records, not captured funds.</p>
     </header>
     <FinanceSummary summary={model.summary} />
+    <PaymentConnectionStatus />
     <FinanceFilters model={model} />
     <FinanceLedger model={model} role={context.membership.role} collectAction={recordCashCollectionAction} />
   </div>

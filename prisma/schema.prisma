@@ -560,6 +560,7 @@ model BookingOrder {
     sensitiveIntakeIv   String? @db.VarChar(32)
     sensitiveIntakeTag  String? @db.VarChar(32)
     sensitiveConsentAt  DateTime?
+    sensitiveIntakePurgedAt DateTime?
     createdAt           DateTime @default(now())
     updatedAt           DateTime @updatedAt
 
