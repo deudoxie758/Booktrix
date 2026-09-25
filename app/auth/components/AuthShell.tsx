@@ -14,7 +14,7 @@ export function AuthShell({ eyebrow, title, description, asideTitle, asideDescri
 		<div className="relative mx-auto grid max-w-6xl overflow-hidden rounded-[2rem] border border-sand-200 bg-cream-50 shadow-soft lg:grid-cols-[.9fr_1.1fr]">
 			<div className="relative hidden min-h-[42rem] overflow-hidden bg-cocoa-950 p-10 text-cream-50 lg:flex lg:flex-col lg:justify-between">
 				<div aria-hidden="true" className="absolute -right-20 -top-16 h-64 w-64 rounded-full border-[3rem] border-clay-500/25" />
-				<p className="relative font-display text-3xl font-semibold">booktrix<span className="text-clay-400">.</span></p>
+				<p className="relative font-display text-3xl font-semibold">booktrx<span className="text-clay-400">.</span></p>
 				<div className="relative max-w-sm">
 					<p className="text-xs font-bold uppercase tracking-[.2em] text-sand-200">Services, thoughtfully booked</p>
 					<h2 className="mt-4 font-display text-5xl leading-[1.05]">{asideTitle}</h2>

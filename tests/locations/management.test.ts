@@ -15,6 +15,8 @@ const validValues = {
   phone: '+1 758 555 0199',
   email: 'rodney@example.com',
   isActive: true,
+  latitude: 14.0101,
+  longitude: -60.9875,
 }
 
 const week = [
@@ -36,6 +38,9 @@ type StoredLocation = {
   phone: string | null
   email: string | null
   timezone: string
+  latitude: number | null
+  longitude: number | null
+  coordinateSource: 'MANUAL' | null
   isActive: boolean
   hours: Array<{ weekday: number; startMinute: number; endMinute: number }>
   serviceCount: number
@@ -44,9 +49,9 @@ type StoredLocation = {
 
 function fixture() {
   const locations = new Map<string, StoredLocation>([
-    ['assigned', { id: 'assigned', businessId: 'business-a', name: 'Castries', slug: 'castries', address: '1 High Street', phone: null, email: null, timezone: 'America/St_Lucia', isActive: true, hours: [], serviceCount: 2, teamCount: 4 }],
-    ['unassigned', { id: 'unassigned', businessId: 'business-a', name: 'Soufriere', slug: 'soufriere', address: '2 Bridge Street', phone: null, email: null, timezone: 'America/St_Lucia', isActive: true, hours: [], serviceCount: 1, teamCount: 1 }],
-    ['business-b-location', { id: 'business-b-location', businessId: 'business-b', name: 'Foreign', slug: 'foreign', address: 'Elsewhere', phone: null, email: null, timezone: 'America/St_Lucia', isActive: true, hours: [], serviceCount: 9, teamCount: 9 }],
+    ['assigned', { id: 'assigned', businessId: 'business-a', name: 'Castries', slug: 'castries', address: '1 High Street', phone: null, email: null, timezone: 'America/St_Lucia', latitude: null, longitude: null, coordinateSource: null, isActive: true, hours: [], serviceCount: 2, teamCount: 4 }],
+    ['unassigned', { id: 'unassigned', businessId: 'business-a', name: 'Soufriere', slug: 'soufriere', address: '2 Bridge Street', phone: null, email: null, timezone: 'America/St_Lucia', latitude: null, longitude: null, coordinateSource: null, isActive: true, hours: [], serviceCount: 1, teamCount: 1 }],
+    ['business-b-location', { id: 'business-b-location', businessId: 'business-b', name: 'Foreign', slug: 'foreign', address: 'Elsewhere', phone: null, email: null, timezone: 'America/St_Lucia', latitude: null, longitude: null, coordinateSource: null, isActive: true, hours: [], serviceCount: 9, teamCount: 9 }],
   ])
   const bookings = [{ id: 'booking-1', locationId: 'assigned' }]
   const audits: Array<{ businessId: string; actorId: string; locationId: string; active: boolean }> = []
@@ -158,6 +163,7 @@ describe('location identity validation', () => {
     const stored = created.ok ? locations.get(created.locationId) : null
     expect(stored?.slug).toBe('rodney-bay-studio')
     expect(stored?.timezone).toBe('America/St_Lucia')
+    expect(stored).toMatchObject({ latitude: 14.0101, longitude: -60.9875, coordinateSource: 'MANUAL' })
 
     const duplicate = await createLocation({ actorId: 'owner', businessId: 'business-a', values: { ...validValues, name: 'Another Castries', slug: ' Castries ' } }, repository)
     expect(duplicate).toEqual({ ok: false, error: 'Please correct the highlighted fields.', fieldErrors: { slug: 'This slug is already used by another location.' } })

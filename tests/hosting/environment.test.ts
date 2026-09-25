@@ -10,13 +10,15 @@ describe('production environment validation', () => {
     DATABASE_URL: 'mysql://user:secret@db.example.com:3306/booktrix',
     NEXTAUTH_URL: 'https://staging.booktrix.com',
     NEXTAUTH_SECRET: 'a-high-entropy-secret-with-at-least-32-characters',
+    GUEST_ACCESS_SECRET: 'guest-access-secret-with-32-random-characters',
+    INTAKE_ENCRYPTION_SECRET: 'intake-encryption-secret-with-32-random-chars',
   }
 
   it('accepts a secure production environment', () => {
     expect(() => validateProductionEnvironment(valid)).not.toThrow()
   })
 
-  it.each(['DATABASE_URL', 'NEXTAUTH_URL', 'NEXTAUTH_SECRET'] as const)('rejects a missing %s', (key) => {
+  it.each(['DATABASE_URL', 'NEXTAUTH_URL', 'NEXTAUTH_SECRET', 'GUEST_ACCESS_SECRET', 'INTAKE_ENCRYPTION_SECRET'] as const)('rejects a missing %s', (key) => {
     expect(() => validateProductionEnvironment({ ...valid, [key]: '' })).toThrow(key)
   })
 
@@ -40,6 +42,11 @@ describe('production environment validation', () => {
   it('rejects known placeholder and low-diversity authentication secrets', () => {
     expect(() => validateProductionEnvironment({ ...valid, NEXTAUTH_SECRET: 'replace-with-at-least-32-random-characters' })).toThrow('NEXTAUTH_SECRET')
     expect(() => validateProductionEnvironment({ ...valid, NEXTAUTH_SECRET: 'a'.repeat(32) })).toThrow('NEXTAUTH_SECRET')
+  })
+
+  it.each(['GUEST_ACCESS_SECRET', 'INTAKE_ENCRYPTION_SECRET'] as const)('requires an independent high-entropy %s', (key) => {
+    expect(() => validateProductionEnvironment({ ...valid, [key]: 'too-short' })).toThrow(key)
+    expect(() => validateProductionEnvironment({ ...valid, [key]: valid.NEXTAUTH_SECRET })).toThrow(key)
   })
 
   it('does not impose production-only requirements during local development', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { POST } from '@/app/api/bookings/create/route'
+import { GET as getLegacySpas } from '@/app/api/spas/route'
 import { canonicalLegacyBookingUrl, resolveLegacyOfferingId } from '@/lib/legacy-booking'
 
 describe('legacy booking routes', () => {
@@ -8,6 +9,12 @@ describe('legacy booking routes', () => {
     const response = await POST()
     expect(response.status).toBe(410)
     await expect(response.json()).resolves.toEqual({ error: 'This booking endpoint has been retired. Use /api/bookings.' })
+  })
+
+  it('retires the old spa data endpoint', async () => {
+    const response = await getLegacySpas()
+    expect(response.status).toBe(410)
+    await expect(response.json()).resolves.toEqual({ error: 'This legacy endpoint has been retired. Use the Booktrx marketplace search.' })
   })
 
   it('preserves a preselected service when redirecting to the canonical flow', () => {

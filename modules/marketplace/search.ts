@@ -1,4 +1,5 @@
 import { listPublishedOfferings } from '@/modules/catalog/repository'
+import { distanceKm, parseSearchCoordinates } from './distance'
 
 export type MarketplaceOfferingRow = {
   id: string
@@ -10,7 +11,7 @@ export type MarketplaceOfferingRow = {
   category: string
   priceCents: number
   durationMinutes: number
-  locations: Array<{ name: string; address: string | null }>
+  locations: Array<{ name: string; address: string | null; latitude?: number | null; longitude?: number | null }>
 }
 
 export type MarketplaceResult = {
@@ -21,9 +22,10 @@ export type MarketplaceResult = {
   startingPriceCents: number
   offerings: Array<Pick<MarketplaceOfferingRow, 'id' | 'offeringName' | 'category' | 'priceCents' | 'durationMinutes'>>
   locations: MarketplaceOfferingRow['locations']
+  distanceKm?: number
 }
 
-type SearchInput = { query?: string; category?: string; district?: string; take?: number; skip?: number }
+type SearchInput = { query?: string; category?: string; district?: string; latitude?: string; longitude?: string; take?: number; skip?: number }
 type SearchRepository = { list(input: SearchInput): Promise<MarketplaceOfferingRow[]> }
 
 const databaseRepository: SearchRepository = {
@@ -39,7 +41,7 @@ const databaseRepository: SearchRepository = {
       category: row.category,
       priceCents: row.priceCents,
       durationMinutes: row.durationMinutes,
-      locations: row.Locations.map(({ location }) => ({ name: location.name, address: location.address })),
+      locations: row.Locations.map(({ location }) => ({ name: location.name, address: location.address, latitude: location.latitude === null ? null : Number(location.latitude), longitude: location.longitude === null ? null : Number(location.longitude) })),
     }))
   },
 }
@@ -52,6 +54,7 @@ export async function searchMarketplace(input: SearchInput, repository: SearchRe
     take: Math.min(input.take ?? 24, 50),
     skip: Math.max(input.skip ?? 0, 0),
   }
+  const origin = parseSearchCoordinates(input)
   const rows = (await repository.list(normalized)).filter((row) =>
     row.businessStatus === 'PUBLISHED'
     && (!normalized.district || row.locations.some((location) => location.address?.toLowerCase().includes(normalized.district!.toLowerCase()))),
@@ -71,8 +74,26 @@ export async function searchMarketplace(input: SearchInput, repository: SearchRe
     current.offerings.push({ id: row.id, offeringName: row.offeringName, category: row.category, priceCents: row.priceCents, durationMinutes: row.durationMinutes })
     grouped.set(row.businessSlug, current)
   }
-  const storefronts = Array.from(grouped.values()).sort((left, right) =>
-    Number(Boolean(right.coverImageUrl)) - Number(Boolean(left.coverImageUrl)),
-  )
+  const storefronts = Array.from(grouped.values())
+  if (origin) {
+    for (const storefront of storefronts) {
+      const distances = storefront.locations.flatMap((location) =>
+        typeof location.latitude === 'number' && typeof location.longitude === 'number'
+          ? [distanceKm(origin, { latitude: location.latitude, longitude: location.longitude })]
+          : [],
+      )
+      if (distances.length) storefront.distanceKm = Math.min(...distances)
+    }
+  }
+  storefronts.sort((left, right) => {
+    if (origin) {
+      const distanceOrder = (left.distanceKm ?? Number.POSITIVE_INFINITY) - (right.distanceKm ?? Number.POSITIVE_INFINITY)
+      if (distanceOrder !== 0) return distanceOrder
+    } else {
+      const imageOrder = Number(Boolean(right.coverImageUrl)) - Number(Boolean(left.coverImageUrl))
+      if (imageOrder !== 0) return imageOrder
+    }
+    return left.businessName.localeCompare(right.businessName) || left.businessSlug.localeCompare(right.businessSlug)
+  })
   return storefronts.slice(normalized.skip, normalized.skip + normalized.take)
 }

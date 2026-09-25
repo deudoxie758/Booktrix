@@ -47,7 +47,7 @@ export function PublicationSettings({ readiness, integrationStatus, action }: { 
       <div>
         <p className="text-xs font-bold uppercase tracking-[.16em] text-clay-600">Marketplace</p>
         <h2 id="publication-heading" className="mt-1 font-display text-2xl text-cocoa-950">Publication</h2>
-        <p className="mt-2 text-sm text-cocoa-600">Publishing makes your storefront visible to customers in Booktrix search. Unpublishing hides it again without deleting any locations, services, team assignments, or booking history.</p>
+        <p className="mt-2 text-sm text-cocoa-600">Publishing makes your storefront visible to customers in Booktrx search. Unpublishing hides it again without deleting any locations, services, team assignments, or booking history.</p>
       </div>
 
       <p className="inline-flex items-center gap-2 rounded-full border border-sand-300 px-4 py-2 text-sm font-semibold text-cocoa-800">

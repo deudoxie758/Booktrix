@@ -5,6 +5,7 @@ import { CashCollectionForm, type CashCollectionActionResult } from '@/component
 import { FinanceFilters, financeQueryString } from '@/components/business/FinanceFilters'
 import { FinanceLedger } from '@/components/business/FinanceLedger'
 import { FinanceSummary } from '@/components/business/FinanceSummary'
+import { PaymentConnectionStatus } from '@/components/business/PaymentConnectionStatus'
 import type { FinanceLedgerModel } from '@/modules/finance/ledger'
 
 const now = new Date('2026-08-19T18:00:00.000Z')
@@ -35,6 +36,15 @@ describe('FinanceSummary', () => {
     expect(screen.getAllByText('EC$120.00').length).toBeGreaterThan(0)
     expect(screen.getByText(/no live payment provider is connected/i)).toBeVisible()
     expect(screen.getByText(/not captured funds/i)).toBeVisible()
+  })
+})
+
+describe('PaymentConnectionStatus', () => {
+  it('explains bank onboarding without implying a live provider connection', () => {
+    render(<PaymentConnectionStatus />)
+    expect(screen.getByText(/bank connection not available yet/i)).toBeVisible()
+    expect(screen.getByText(/never online-banking credentials/i)).toBeVisible()
+    expect(screen.getByText(/subscription and commission/i)).toBeVisible()
   })
 })
 

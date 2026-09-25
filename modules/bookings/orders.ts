@@ -1,5 +1,6 @@
 import { calculateBookingPaymentAmounts, getAllowedPaymentChoices } from '@/modules/catalog/payment-options'
 import type { HoldRecord } from '@/modules/scheduling/holds'
+import { guestAccessForBooking } from './guest-access'
 
 import type { CreateOrderInput, OfferingBookingPolicy, OrderStatus, SegmentStatus } from './types'
 
@@ -7,7 +8,11 @@ type CreatedOrder = {
   id: string
   idempotencyKey: string
   businessId: string
-  customerId: string
+  customerId: string | null
+  customerName: string
+  customerEmail: string
+  customerPhone: string
+  intake?: CreateOrderInput['intake']
   holdToken: string
   status: OrderStatus
   subtotalCents: number
@@ -15,6 +20,8 @@ type CreatedOrder = {
   dueAtAppointmentCents: number
   paymentChoice: CreateOrderInput['paymentChoice']
   paymentRequest?: { status: 'PENDING'; amountCents: number; currency: 'XCD'; reference: string; provider: null } | null
+  guestAccess?: { tokenHash: string; expiresAt: Date } | null
+  guestAccessToken?: string | null
   segments: Array<HoldRecord['segments'][number] & { confirmationMode: 'AUTOMATIC' | 'MANUAL'; status: SegmentStatus }>
 }
 
@@ -25,19 +32,19 @@ export interface BookingOrderStore {
   getActiveHold(token: string, now: Date): Promise<HoldRecord>
   getOfferings(ids: string[], businessId: string): Promise<OfferingBookingPolicy[]>
   revalidateHold(hold: HoldRecord, now: Date): Promise<void>
-  create(input: Omit<CreatedOrder, 'id'>): Promise<CreatedOrder>
+  create(input: Omit<CreatedOrder, 'id' | 'guestAccessToken'>): Promise<CreatedOrder>
   consumeHoldIfActive(token: string, consumedAt: Date): Promise<boolean>
 }
 
 export async function createBookingOrder(
   input: CreateOrderInput,
-  dependencies: { store: BookingOrderStore; now?: () => Date },
+  dependencies: { store: BookingOrderStore; now?: () => Date; guestAccessSecret?: string },
 ) {
   return dependencies.store.transaction(async (store) => {
     await store.acquireHoldLock(input.holdToken)
     const existing = await store.findByIdempotencyKey(input.idempotencyKey)
     if (existing) {
-      if (existing.customerId !== input.customerId || existing.holdToken !== input.holdToken || existing.paymentChoice !== input.paymentChoice) {
+      if (existing.customerId !== (input.customerId ?? null) || existing.holdToken !== input.holdToken || existing.paymentChoice !== input.paymentChoice) {
         throw Object.assign(new Error('IDEMPOTENCY_KEY_REUSED'), { code: 'IDEMPOTENCY_KEY_REUSED' })
       }
       return existing
@@ -77,8 +84,13 @@ export async function createBookingOrder(
       reference: `booking:${input.idempotencyKey}`,
       provider: null,
     } : null
+    const guestAccess = input.customerId ? null : guestAccessForBooking({
+      idempotencyKey: input.idempotencyKey,
+      finalAppointmentEnd: new Date(Math.max(...hold.segments.map((segment) => segment.end.getTime()))),
+      secret: dependencies.guestAccessSecret ?? '',
+    })
     if (!await store.consumeHoldIfActive(hold.token, now)) throw Object.assign(new Error('HOLD_EXPIRED'), { code: 'HOLD_EXPIRED' })
-    const order = await store.create({ idempotencyKey: input.idempotencyKey, holdToken: hold.token, businessId: hold.businessId, customerId: input.customerId, status, subtotalCents, dueOnlineCents: amounts.dueOnlineCents, dueAtAppointmentCents: amounts.dueAtAppointmentCents, paymentChoice: input.paymentChoice, paymentRequest, segments })
-    return order
+    const order = await store.create({ idempotencyKey: input.idempotencyKey, holdToken: hold.token, businessId: hold.businessId, customerId: input.customerId ?? null, customerName: input.customerName, customerEmail: input.customerEmail, customerPhone: input.customerPhone, intake: input.intake, status, subtotalCents, dueOnlineCents: amounts.dueOnlineCents, dueAtAppointmentCents: amounts.dueAtAppointmentCents, paymentChoice: input.paymentChoice, paymentRequest, guestAccess: guestAccess ? { tokenHash: guestAccess.tokenHash, expiresAt: guestAccess.expiresAt } : null, segments })
+    return { ...order, guestAccessToken: guestAccess?.token ?? null }
   })
 }

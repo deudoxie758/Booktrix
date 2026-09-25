@@ -38,8 +38,13 @@ export async function GET(request: Request) {
         ...facts.holds.filter((item) => item.membershipId === membershipId).map((item) => ({ start: item.occupiedStartsAt, end: item.occupiedEndsAt })),
       ],
     }))
+    const policy = facts.location.business.Policy
+    const now = new Date()
+    const windowStart = new Date(Math.max(input.from.getTime(), now.getTime() + (policy?.minimumNoticeMinutes ?? 60) * 60_000))
+    const windowEnd = new Date(Math.min(input.to.getTime(), now.getTime() + (policy?.maximumAdvanceBookingDays ?? 90) * 86_400_000))
+    if (windowStart >= windowEnd) return NextResponse.json({ slots: [] })
     const starts = findAvailableStarts({
-      window: { start: input.from, end: input.to },
+      window: { start: windowStart, end: windowEnd },
       locationHours: recurringIntervalsForRange(facts.location.Hours, input.from, input.to, facts.location.timezone),
       services: input.offeringIds.map((offeringId, index) => {
         const offering = facts.offerings.find((item) => item.id === offeringId)!

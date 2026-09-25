@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 
 import { prisma } from '@/lib/prisma'
-import { getPublishedStorefront } from '@/modules/marketplace/storefront'
+import { getCurrentStorefrontSlug, getPublishedStorefront } from '@/modules/marketplace/storefront'
 import { getActor } from '@/modules/identity/session'
 import { checkoutPaymentChoices, offeringCheckoutEnabled } from '@/lib/payment-mode'
 
@@ -12,7 +12,11 @@ export const dynamic = 'force-dynamic'
 
 export default async function BookingPage({ params, searchParams }: { params: { businessSlug: string }; searchParams: { services?: string; hold?: string; reschedule?: string } }) {
   const business = await getPublishedStorefront(params.businessSlug)
-  if (!business) notFound()
+  if (!business) {
+    const currentSlug = await getCurrentStorefrontSlug(params.businessSlug)
+    if (currentSlug) redirect(`/book/${currentSlug}${searchParams.services ? `?services=${encodeURIComponent(searchParams.services)}` : ''}`)
+    notFound()
+  }
   const selectedIds = (searchParams.services ?? '').split(',').filter(Boolean)
   const validIds = business.ServiceOfferings.filter((offering) => selectedIds.includes(offering.id)).map((offering) => offering.id)
   let hold: null | { token: string; expiresAt: string; expired: boolean; segments: Array<{ offeringId: string; offeringName: string; startsAt: string; endsAt: string; locationName: string; professionalName: string | null }> } = null
@@ -39,5 +43,5 @@ export default async function BookingPage({ params, searchParams }: { params: { 
     ...(offering.allowFullPayment ? ['FULL' as const] : []),
     ...(offering.allowDeposit ? ['DEPOSIT' as const] : []),
     ...(offering.allowCash ? ['CASH' as const] : []),
-  ]) })), professionals, selectedOfferingIds: selected, hold, authenticated: Boolean(actor), rescheduleOrderId: searchParams.reschedule }} /></div></main>
+  ]), intakeQuestions: offering.IntakeTemplates.flatMap((assignment) => assignment.template.active ? assignment.template.Questions.map((question) => ({ id: question.id, label: question.label, type: question.type, options: question.options, required: question.required, sensitive: question.sensitive })) : []) })), professionals, selectedOfferingIds: selected, hold, authenticated: Boolean(actor), customer: actor ? { name: actor.name ?? '', email: actor.email ?? '' } : undefined, maximumAdvanceBookingDays: business.Policy?.maximumAdvanceBookingDays ?? 90, rescheduleOrderId: searchParams.reschedule }} /></div></main>
 }

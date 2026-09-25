@@ -60,14 +60,22 @@ export const workspaceSecurityFixtures = {
   },
 }
 type Hours = Array<[number, number, number]>
-type LocationFixture = { id: string; slug: string; name: string; address: string; phone: string; email: string; hours: Hours }
+type LocationFixture = { id: string; slug: string; name: string; address: string; phone: string; email: string; latitude: number; longitude: number; coordinateSource: 'MANUAL'; hours: Hours }
 type MemberFixture = { id: string; email: string; name: string; role: BusinessRole; locations: string[] }
 type OfferingFixture = { id: string; category: string; name: string; description: string; minutes: number; price: number; locations: string[]; staff: string[]; mode?: ConfirmationMode; deposit?: [DepositKind, number]; cash?: boolean; full?: boolean }
 type BusinessFixture = { id: string; name: string; slug: string; coverImageUrl: string; locations: LocationFixture[]; members: MemberFixture[]; offerings: OfferingFixture[] }
 
 const standardHours: Hours = [[1, 540, 1020], [2, 540, 1020], [3, 540, 1020], [4, 540, 1020], [5, 540, 1080], [6, 600, 960]]
 const clubHours: Hours = [[1, 480, 1140], [2, 480, 1140], [3, 480, 1140], [4, 480, 1140], [5, 480, 1140], [6, 540, 1020], [0, 540, 900]]
-const location = (id: string, slug: string, name: string, address: string, hours = standardHours): LocationFixture => ({ id, slug, name, address, phone: '+1 758-555-0100', email: `${slug}@booktrix.test`, hours })
+const districtCoordinates: Record<string, [number, number]> = {
+  'castries': [14.0101, -60.9875], 'rodney-bay': [14.0742, -60.9492], 'gros-islet': [14.0806, -60.9533],
+  'vieux-fort': [13.7167, -60.9500], 'marigot-bay': [13.9667, -61.0278], 'soufriere': [13.8562, -61.0566],
+  'micoud': [13.8167, -60.9000], 'laborie': [13.7539, -60.9958],
+}
+const location = (id: string, slug: string, name: string, address: string, hours = standardHours): LocationFixture => {
+  const [latitude, longitude] = districtCoordinates[slug] ?? districtCoordinates.castries
+  return { id, slug, name, address, phone: '+1 758-555-0100', email: `${slug}@booktrix.test`, latitude, longitude, coordinateSource: 'MANUAL', hours }
+}
 const member = (id: string, name: string, role: BusinessRole, locations: string[]): MemberFixture => ({ id, name, role, locations, email: `${id.replace('booktrix-e2e-member-', '')}@booktrix.test` })
 const offering = (id: string, category: string, name: string, minutes: number, price: number, locations: string[], staff: string[], description: string, mode: ConfirmationMode = 'AUTOMATIC', deposit?: [DepositKind, number], cash = true, full = true): OfferingFixture => ({ id, category, name, minutes, price, locations, staff, description, mode, deposit, cash, full })
 
@@ -154,7 +162,7 @@ async function seedDemoBusiness(fixture: BusinessFixture) {
   const locations = new Map<string, { id: string }>()
   for (const item of fixture.locations) {
     const { hours, ...locationData } = item
-    const saved = await prisma.location.upsert({ where: { businessId_slug: { businessId: business.id, slug: item.slug } }, create: { ...locationData, businessId: business.id, isActive: true }, update: { name: item.name, address: item.address, phone: item.phone, email: item.email, isActive: true } })
+    const saved = await prisma.location.upsert({ where: { businessId_slug: { businessId: business.id, slug: item.slug } }, create: { ...locationData, businessId: business.id, isActive: true }, update: { name: item.name, address: item.address, phone: item.phone, email: item.email, latitude: item.latitude, longitude: item.longitude, coordinateSource: item.coordinateSource, isActive: true } })
     locations.set(item.slug, saved)
     for (const [weekday, startMinute, endMinute] of hours) await prisma.locationHours.upsert({ where: { locationId_weekday_startMinute_endMinute: { locationId: saved.id, weekday, startMinute, endMinute } }, create: { id: `booktrix-e2e-hours-${fixture.slug}-${item.slug}-${weekday}`, locationId: saved.id, weekday, startMinute, endMinute }, update: {} })
   }
@@ -182,8 +190,8 @@ async function seedBookingJourneyFixtures() {
   const [owner, manager, staff, customer, accounts] = await Promise.all([upsertUser('booktrix-e2e-owner', 'owner.e2e@booktrix.test', 'E2E Owner', Role.OWNER), upsertUser('booktrix-e2e-manager', 'manager.e2e@booktrix.test', 'E2E Manager', Role.USER), upsertUser('booktrix-e2e-staff', 'staff.e2e@booktrix.test', 'Amara E2E', Role.USER), upsertUser('booktrix-e2e-customer', 'customer.e2e@booktrix.test', 'E2E Customer', Role.USER), upsertUser('booktrix-e2e-accounts', 'accounts.e2e@booktrix.test', 'E2E Accounts', Role.ACCOUNTANT)])
   const business = await prisma.business.upsert({ where: { slug: 'booktrix-e2e-studio' }, create: { id: 'booktrix-e2e-business', name: 'Booktrix E2E Studio', slug: 'booktrix-e2e-studio', status: 'PUBLISHED' }, update: { name: 'Booktrix E2E Studio', status: 'PUBLISHED' } })
   await prisma.businessSetup.upsert({ where: { businessId: business.id }, create: { businessId: business.id, profileComplete: true, firstLocationComplete: true, policiesAccepted: true, publicationReady: true }, update: { profileComplete: true, firstLocationComplete: true, policiesAccepted: true, publicationReady: true } })
-  const castries = await prisma.location.upsert({ where: { businessId_slug: { businessId: business.id, slug: 'castries' } }, create: { id: 'booktrix-e2e-location-castries', businessId: business.id, slug: 'castries', name: 'E2E Castries Studio', address: '1 Test Street, Castries', isActive: true }, update: { name: 'E2E Castries Studio', isActive: true } })
-  const rodneyBay = await prisma.location.upsert({ where: { businessId_slug: { businessId: business.id, slug: 'rodney-bay' } }, create: { id: 'booktrix-e2e-location-rodney', businessId: business.id, slug: 'rodney-bay', name: 'E2E Rodney Bay Studio', address: '2 Test Street, Rodney Bay', isActive: true }, update: { name: 'E2E Rodney Bay Studio', isActive: true } })
+  const castries = await prisma.location.upsert({ where: { businessId_slug: { businessId: business.id, slug: 'castries' } }, create: { id: 'booktrix-e2e-location-castries', businessId: business.id, slug: 'castries', name: 'E2E Castries Studio', address: '1 Test Street, Castries', latitude: 14.0101, longitude: -60.9875, coordinateSource: 'MANUAL', isActive: true }, update: { name: 'E2E Castries Studio', latitude: 14.0101, longitude: -60.9875, coordinateSource: 'MANUAL', isActive: true } })
+  const rodneyBay = await prisma.location.upsert({ where: { businessId_slug: { businessId: business.id, slug: 'rodney-bay' } }, create: { id: 'booktrix-e2e-location-rodney', businessId: business.id, slug: 'rodney-bay', name: 'E2E Rodney Bay Studio', address: '2 Test Street, Rodney Bay', latitude: 14.0742, longitude: -60.9492, coordinateSource: 'MANUAL', isActive: true }, update: { name: 'E2E Rodney Bay Studio', latitude: 14.0742, longitude: -60.9492, coordinateSource: 'MANUAL', isActive: true } })
   const memberships = new Map<string, string>()
   for (const [person, role, id, locations] of [[owner, 'OWNER', 'booktrix-e2e-membership-owner', [castries, rodneyBay]], [manager, 'MANAGER', 'booktrix-e2e-membership-manager', [castries]], [staff, 'STAFF', 'booktrix-e2e-membership-staff', [castries, rodneyBay]], [accounts, 'ACCOUNTS', 'booktrix-e2e-membership-accounts', [castries]]] as const) { const saved = await prisma.businessMembership.upsert({ where: { businessId_userId: { businessId: business.id, userId: person.id } }, create: { id, businessId: business.id, userId: person.id, role }, update: { role, active: true } }); memberships.set(role, saved.id); for (const savedLocation of locations) await prisma.locationAssignment.upsert({ where: { membershipId_locationId: { membershipId: saved.id, locationId: savedLocation.id } }, create: { membershipId: saved.id, locationId: savedLocation.id }, update: {} }) }
   const massage = await prisma.serviceOffering.upsert({ where: { id: 'booktrix-e2e-offering-massage' }, create: { id: 'booktrix-e2e-offering-massage', businessId: business.id, category: 'Massage', name: 'E2E Deep Tissue Massage', description: 'Automatic confirmation fixture', durationMinutes: 60, preparationMinutes: 10, cleanupMinutes: 10, priceCents: 12000, confirmationMode: 'AUTOMATIC', allowFullPayment: true, allowCash: true }, update: { active: true } })

@@ -57,7 +57,7 @@ export function BookingPolicyForm({ policy, action }: { policy: BookingPolicyVal
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-cocoa-900" htmlFor="settings-currency">Currency</label>
             <input id="settings-currency" name="currency" value={BUSINESS_CURRENCY} readOnly aria-readonly="true" className={`${numberInput} bg-sand-50 text-cocoa-600`} />
-            <p className="text-sm text-cocoa-600">Booktrix businesses operate in Eastern Caribbean dollars (XCD).</p>
+            <p className="text-sm text-cocoa-600">Booktrx businesses operate in Eastern Caribbean dollars (XCD).</p>
           </div>
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-cocoa-900" htmlFor="settings-timezone">Timezone</label>

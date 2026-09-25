@@ -21,15 +21,31 @@ function fixture() {
     business: { id: 'business-a', name: 'Island Glow', slug: 'island-glow', description: null as string | null, phone: null as string | null, email: null as string | null },
     policy: null as null | Record<string, unknown>,
     audits: [] as Array<{ actorId: string; actorRole: string; action: string; details: Record<string, unknown> }>,
+    redirects: [] as Array<{ businessId: string; oldSlug: string }>,
     transactionCount: 0,
   }
 
   const transaction = {
     business: {
+      async findUniqueOrThrow({ where }: any) {
+        if (where.id !== state.business.id) throw new Error('NOT_FOUND')
+        return { id: state.business.id, slug: state.business.slug }
+      },
       async update({ where, data }: any) {
         if (where.id !== state.business.id) throw new Error('NOT_FOUND')
         state.business = { ...state.business, ...data }
         return { id: state.business.id, name: state.business.name, slug: state.business.slug, description: state.business.description, phone: state.business.phone, email: state.business.email }
+      },
+    },
+    storefrontSlugRedirect: {
+      async deleteMany({ where }: any) {
+        state.redirects = state.redirects.filter((redirect) => !(redirect.businessId === where.businessId && redirect.oldSlug === where.oldSlug))
+        return { count: 1 }
+      },
+      async upsert({ where, create }: any) {
+        const index = state.redirects.findIndex((redirect) => redirect.oldSlug === where.oldSlug)
+        if (index === -1) state.redirects.push(create)
+        return create
       },
     },
     businessPolicy: {
@@ -48,6 +64,7 @@ function fixture() {
 
   const client = {
     business: { findUnique: async () => null },
+    storefrontSlugRedirect: { findUnique: async () => null },
     businessMembership: { findFirst: async () => ({ role: 'OWNER' }) },
     auditLog: { create: transaction.auditLog.create },
     async $transaction<T>(work: (tx: typeof transaction) => Promise<T>) {
@@ -66,6 +83,7 @@ describe('createPrismaBusinessSettingsRepository', () => {
     await repository.saveProfile({ actorId: 'owner-1', businessId: 'business-a', values: profileValues })
 
     expect(state.business.description).toBe(profileValues.description)
+    expect(state.redirects).toContainEqual({ businessId: 'business-a', oldSlug: 'island-glow' })
     expect(state.audits).toEqual([
       expect.objectContaining({ actorId: 'owner-1', actorRole: 'OWNER', action: 'BUSINESS_PROFILE_UPDATED', details: expect.objectContaining({ businessId: 'business-a', slug: profileValues.slug }) }),
     ])

@@ -1,6 +1,6 @@
-# Booktrix
+# Booktrx
 
-Booktrix is a Saint Lucia–based marketplace and operations platform for appointment-driven businesses. Phase 2 adds service discovery, live availability, multi-service booking, customer self-service, and manager booking operations to the multi-business/location foundation.
+Booktrx is a Saint Lucia–based marketplace and operations platform for appointment-driven businesses. Phase 2 adds service discovery, live availability, multi-service booking, customer self-service, and manager booking operations to the multi-business/location foundation.
 
 ## Local setup
 
@@ -32,6 +32,6 @@ WiPay is not live in Phase 2. Payment calls must use `modules/payments`; the leg
 
 ## Private staging
 
-Booktrix includes a single-instance Railway configuration with a database-backed `/api/health` readiness check and pre-deploy Prisma migrations. Keep `ONLINE_PAYMENTS_ENABLED=false` so staging remains cash-only. Production configuration fails closed when its database URL, HTTPS NextAuth URL, or high-entropy NextAuth secret is missing.
+Booktrx includes a single-instance Railway configuration with a database-backed `/api/health` readiness check and pre-deploy Prisma migrations. Keep `ONLINE_PAYMENTS_ENABLED=false` so staging remains cash-only. Production configuration fails closed when its database URL, HTTPS NextAuth URL, or high-entropy NextAuth secret is missing.
 
 The legacy booking page redirects into `/book/[businessSlug]`, and the fake legacy creation endpoint is retired. See `DEPLOYMENT.md` for the Railway checklist, database connection limits, secure administrator bootstrap, and the remaining gates before public launch.

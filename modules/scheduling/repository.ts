@@ -16,7 +16,7 @@ export async function loadSchedulingFacts(input: {
   excludeHoldToken?: string
 }, client: SchedulingClient = prisma, now = new Date()) {
   const [location, offerings, qualifications, schedules, timeOff, segments, holds] = await Promise.all([
-    client.location.findFirstOrThrow({ where: { id: input.locationId, businessId: input.businessId, isActive: true }, include: { Hours: true, business: { select: { status: true } } } }),
+    client.location.findFirstOrThrow({ where: { id: input.locationId, businessId: input.businessId, isActive: true }, include: { Hours: true, business: { select: { status: true, Policy: { select: { minimumNoticeMinutes: true, maximumAdvanceBookingDays: true } } } } } }),
     client.serviceOffering.findMany({ where: { id: { in: input.offeringIds }, businessId: input.businessId, active: true, Locations: { some: { locationId: input.locationId, active: true, location: { businessId: input.businessId, isActive: true } } } } }),
     client.staffQualification.findMany({
       where: {
@@ -40,6 +40,7 @@ export function toSchedulingSnapshot(facts: Awaited<ReturnType<typeof loadSchedu
   return {
     businessId: facts.location.businessId,
     businessPublished: facts.location.business.status === 'PUBLISHED',
+    bookingPolicy: facts.location.business.Policy ?? { minimumNoticeMinutes: 60, maximumAdvanceBookingDays: 90 },
     location: {
       id: facts.location.id,
       businessId: facts.location.businessId,

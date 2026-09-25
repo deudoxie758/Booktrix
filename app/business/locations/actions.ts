@@ -11,12 +11,18 @@ import {
 import { requireWorkspaceRole } from '@/modules/organizations/context'
 
 function locationValues(formData: FormData) {
+  const optionalCoordinate = (name: 'latitude' | 'longitude') => {
+    const value = String(formData.get(name) ?? '').trim()
+    return value === '' ? null : Number(value)
+  }
   return {
     name: String(formData.get('name') ?? ''),
     slug: String(formData.get('slug') ?? ''),
     address: String(formData.get('address') ?? ''),
     phone: String(formData.get('phone') ?? ''),
     email: String(formData.get('email') ?? ''),
+    latitude: optionalCoordinate('latitude'),
+    longitude: optionalCoordinate('longitude'),
   }
 }
 

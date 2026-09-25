@@ -61,7 +61,7 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
 
 		{googleEnabled && <SocialSignIn label="Continue with Google" disabled={isLoading} onClick={googleSignIn} />}
 
-		<p className="mt-7 text-center text-sm text-cocoa-600">New to Booktrix? <Link href={authRoute('/auth/signup', callbackUrl)} className="font-semibold text-clay-600 underline decoration-clay-200 underline-offset-4 hover:text-cocoa-950">Create an account</Link></p>
+		<p className="mt-7 text-center text-sm text-cocoa-600">New to Booktrx? <Link href={authRoute('/auth/signup', callbackUrl)} className="font-semibold text-clay-600 underline decoration-clay-200 underline-offset-4 hover:text-cocoa-950">Create an account</Link></p>
 	</>
 }
 

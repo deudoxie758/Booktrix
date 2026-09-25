@@ -15,6 +15,9 @@ const location: ManagedLocation = {
   phone: '+1 758 555 0100',
   email: 'castries@example.com',
   timezone: 'America/St_Lucia',
+  latitude: 14.0101,
+  longitude: -60.9875,
+  coordinateSource: 'MANUAL',
   isActive: true,
   hours: [
     { weekday: 1, startMinute: 540, endMinute: 1020 },
@@ -52,8 +55,10 @@ describe('location management roles and summaries', () => {
 
     const addForm = screen.getByRole('form', { name: /add location/i })
     expect(within(addForm).getByLabelText(/location name/i)).toBeRequired()
-    expect(within(addForm).getByLabelText(/^slug/i)).toBeRequired()
+    expect(within(addForm).getByLabelText(/location url/i)).toBeRequired()
     expect(within(addForm).getByLabelText(/^address/i)).toBeRequired()
+    expect(within(addForm).getByLabelText(/^latitude/i)).toBeVisible()
+    expect(within(addForm).getByLabelText(/^longitude/i)).toBeVisible()
     expect(within(addForm).getByLabelText(/^phone/i)).toBeVisible()
     expect(within(addForm).getByLabelText(/^email/i)).toBeVisible()
 
@@ -73,7 +78,7 @@ describe('location form feedback', () => {
     render(<LocationEditor mode="create" action={action} />)
 
     fireEvent.change(screen.getByLabelText(/location name/i), { target: { value: 'Rodney Bay' } })
-    fireEvent.change(screen.getByLabelText(/^slug/i), { target: { value: 'rodney-bay' } })
+    fireEvent.change(screen.getByLabelText(/location url/i), { target: { value: 'rodney-bay' } })
     fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: 'Baywalk Mall' } })
     fireEvent.submit(screen.getByRole('form', { name: /add location/i }))
 
@@ -88,7 +93,7 @@ describe('location form feedback', () => {
     render(<LocationEditor mode="create" action={action} />)
 
     fireEvent.change(screen.getByLabelText(/location name/i), { target: { value: 'Rodney Bay' } })
-    fireEvent.change(screen.getByLabelText(/^slug/i), { target: { value: 'rodney-bay' } })
+    fireEvent.change(screen.getByLabelText(/location url/i), { target: { value: 'rodney-bay' } })
     fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: 'Baywalk Mall' } })
     const form = screen.getByRole('form', { name: /add location/i })
     fireEvent.submit(form)

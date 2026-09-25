@@ -13,7 +13,7 @@ describe('WorkspaceShell', () => {
   it('keeps the logo in the business workspace and exposes account, marketplace, and sign out', () => {
     render(<WorkspaceShell title="Island Glow" role="OWNER"><div>Body</div></WorkspaceShell>)
 
-    expect(screen.getByRole('link', { name: /booktrix/i })).toHaveAttribute('href', '/business')
+    expect(screen.getByRole('link', { name: /booktrx/i })).toHaveAttribute('href', '/business')
     expect(screen.getByRole('link', { name: /view marketplace/i })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /my account/i })).toHaveAttribute('href', '/profile')
     expect(screen.getByRole('button', { name: /sign out/i })).toBeVisible()

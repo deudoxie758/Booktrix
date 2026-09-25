@@ -4,14 +4,17 @@
 
 - `DATABASE_URL`: MySQL connection
 - `NEXTAUTH_SECRET`: high-entropy production secret
+- `GUEST_ACCESS_SECRET`: separate high-entropy secret used to hash guest booking links
+- `INTAKE_ENCRYPTION_SECRET`: separate high-entropy secret used to encrypt sensitive intake answers
+- `SENSITIVE_INTAKE_RETENTION_DAYS`: retention window; defaults to `365` and must be at least `30`
 - `NEXTAUTH_URL`: canonical HTTPS URL
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: optional Google sign-in
 - `ONLINE_PAYMENTS_ENABLED`: keep `false` for staging
 - `PAYMENT_PROVIDER`: leave empty until a real provider is registered, executes checkout, and is verified
 
-WiPay credentials are deferred to the payment implementation phase.
+Payment-provider credentials are deferred until a provider has been verified for Saint Lucia merchant onboarding and local bank settlement. As of the September 2026 review, Saint Lucia is not listed on Stripe's supported-business country list, while WePay does not offer direct merchant integration and its published verification guidance is limited to US and Canadian accounts. Do not enable either by setting environment variables alone.
 
-Production startup validates the database URL, canonical HTTPS auth URL, and an auth secret of at least 32 characters. Missing or unsafe values stop the application instead of allowing a partially configured deployment.
+Production startup validates the database URL, canonical HTTPS auth URL, and three independent secrets of at least 32 characters. Missing, reused, or unsafe values stop the application instead of allowing a partially configured deployment.
 
 The application caps Prisma's pool at two connections per application instance and uses a 20-second pool timeout. The current Clever Cloud database user is limited to five simultaneous connections, so run no more than two application instances and control rolling-deployment overlap. Keep operational scripts sequential and give them an equivalently bounded connection URL. Before migrations or maintenance, stop or scale down application instances; spare capacity is not guaranteed while they remain active. Upgrade the database plan or introduce a compatible external pooler before scaling beyond this limit.
 
@@ -43,6 +46,7 @@ Rollback is forward-only: restore a backup for data emergencies or add a correct
 4. Deploy using the checked-in `railway.toml`. Railway builds with `npm run build`, runs `npx prisma migrate deploy` before release, starts with `npm start`, and checks `/api/health`.
 5. Keep `numReplicas=1` while using the current Clever Cloud plan. Do not enable overlapping replicas or horizontal autoscaling.
 6. Verify `/api/health` returns `200` and `{ "status": "ok", "service": "booktrix", "database": "reachable" }` before sharing the staging URL.
+7. Create a Railway cron service that uses the same image and database variables and runs `npm run intake:purge` daily. Review its logs for a successful purge count.
 
 Create the first platform administrator only after setting explicit one-time secret environment values in Railway (or a local environment that does not persist commands in shell history), then run:
 

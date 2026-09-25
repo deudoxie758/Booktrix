@@ -37,12 +37,12 @@ export function BusinessProfileForm({ profile, action }: { profile: BusinessProf
       <div>
         <p className="text-xs font-bold uppercase tracking-[.16em] text-clay-600">Storefront identity</p>
         <h2 id="profile-heading" className="mt-1 font-display text-2xl text-cocoa-950">Business profile</h2>
-        <p className="mt-2 text-sm text-cocoa-600">This is the public name, slug, description, and contact details shown on your marketplace storefront.</p>
+        <p className="mt-2 text-sm text-cocoa-600">This is the public name, storefront address, description, and contact details shown on your marketplace storefront.</p>
       </div>
       <form onSubmit={submit} aria-label="Business profile" className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field required id="settings-name" name="name" label="Business name" defaultValue={profile.name} error={errors?.name} />
-          <Field required id="settings-slug" name="slug" label="Slug" defaultValue={profile.slug} error={errors?.slug} help="Used in your public marketplace URL." />
+          <Field required id="settings-slug" name="slug" label="Storefront URL" defaultValue={profile.slug} error={errors?.slug} help={`Your public address: /s/${profile.slug}. Changing it keeps the old address as a redirect.`} />
           <Field id="settings-phone" name="phone" type="tel" label="Phone" defaultValue={profile.phone ?? ''} error={errors?.phone} />
           <Field id="settings-email" name="email" type="email" label="Email" defaultValue={profile.email ?? ''} error={errors?.email} />
         </div>

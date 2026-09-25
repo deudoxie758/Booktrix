@@ -7,6 +7,7 @@ type RecurringInterval = { weekday: number; startMinute: number; endMinute: numb
 export type SchedulingSnapshot = {
   businessId: string
   businessPublished: boolean
+  bookingPolicy?: { minimumNoticeMinutes: number; maximumAdvanceBookingDays: number }
   location: {
     id: string
     businessId: string
@@ -50,7 +51,7 @@ const zonedParts = (date: Date, timezone: string): ZonedParts => {
 
 const weekday = ({ year, month, day }: ZonedParts) => new Date(Date.UTC(year, month - 1, day)).getUTCDay()
 
-const zonedDateTime = (year: number, month: number, day: number, minute: number, timezone: string) => {
+export const zonedDateTime = (year: number, month: number, day: number, minute: number, timezone: string) => {
   const target = Date.UTC(year, month - 1, day, Math.floor(minute / 60), minute % 60)
   let instant = target
   for (let iteration = 0; iteration < 3; iteration += 1) {
@@ -108,13 +109,14 @@ export function deriveValidatedSegments(
     segments: Array<{ offeringId: string; membershipId: string; start: Date; attendeeCount: number }>
   },
   snapshot: SchedulingSnapshot,
-  options: { overrideAvailability?: boolean } = {},
+  options: { overrideAvailability?: boolean; now?: Date } = {},
 ): HoldSegment[] {
   if (!snapshot.businessPublished || snapshot.businessId !== input.businessId
     || snapshot.location.id !== input.locationId || snapshot.location.businessId !== input.businessId
     || !snapshot.location.active || !input.segments.length) throw unavailable('INVALID_SELECTION')
 
   let previousOccupiedEnd: Date | undefined
+  const now = options.now ?? new Date()
   return input.segments.map((requested) => {
     const offering = snapshot.offerings.find((candidate) => candidate.id === requested.offeringId)
     const professional = snapshot.professionals.find((candidate) => candidate.membershipId === requested.membershipId)
@@ -129,6 +131,11 @@ export function deriveValidatedSegments(
     const end = new Date(start.getTime() + offering.durationMinutes * 60_000)
     const occupiedStart = new Date(start.getTime() - offering.preparationMinutes * 60_000)
     const occupiedEnd = new Date(end.getTime() + offering.cleanupMinutes * 60_000)
+    if (!options.overrideAvailability && snapshot.bookingPolicy) {
+      const earliest = now.getTime() + snapshot.bookingPolicy.minimumNoticeMinutes * 60_000
+      const latest = now.getTime() + snapshot.bookingPolicy.maximumAdvanceBookingDays * 86_400_000
+      if (start.getTime() < earliest || start.getTime() > latest) throw unavailable()
+    }
     if (previousOccupiedEnd && occupiedStart.getTime() !== previousOccupiedEnd.getTime()) throw unavailable('INVALID_SEQUENCE')
     previousOccupiedEnd = occupiedEnd
     const occupiedInterval = { start: occupiedStart, end: occupiedEnd }

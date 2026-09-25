@@ -118,6 +118,16 @@ enum CashCollectionKind {
     ADJUSTMENT
 }
 
+enum IntakeQuestionType {
+    SHORT_TEXT
+    LONG_TEXT
+    SINGLE_CHOICE
+    MULTIPLE_CHOICE
+    YES_NO
+    DATE
+    CONSENT
+}
+
 model User {
     id             String    @id @default(cuid())
     email          String    @unique
@@ -138,6 +148,7 @@ model User {
     BookingOrders BookingOrder[]
     BookingHolds BookingHold[]
     InvitedBusinessInvitations BusinessInvitation[] @relation("BusinessInvitationInviter")
+    SensitiveIntakeAudits SensitiveIntakeAccessAudit[]
     createdAt      DateTime  @default(now())
     updatedAt      DateTime  @updatedAt
 }
@@ -164,6 +175,9 @@ model Business {
     SchedulingLocks SchedulingLock[]
     Invitations BusinessInvitation[]
     CashCollections CashCollection[]
+    IntakeTemplates IntakeTemplate[]
+    SensitiveIntakeAudits SensitiveIntakeAccessAudit[]
+    SlugRedirects StorefrontSlugRedirect[]
     createdAt       DateTime             @default(now())
     updatedAt       DateTime             @updatedAt
 }
@@ -190,6 +204,16 @@ model BusinessPolicy {
     updatedAt                 DateTime         @updatedAt
 }
 
+model StorefrontSlugRedirect {
+    id         String   @id @default(cuid())
+    businessId String
+    oldSlug    String   @unique
+    business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+    createdAt  DateTime @default(now())
+
+    @@index([businessId, createdAt])
+}
+
 model Location {
     id          String               @id @default(cuid())
     businessId  String
@@ -198,6 +222,9 @@ model Location {
     slug        String
     timezone    String               @default("America/St_Lucia")
     address     String?
+    latitude    Decimal?             @db.Decimal(9, 6)
+    longitude   Decimal?             @db.Decimal(9, 6)
+    coordinateSource String?         @db.VarChar(20)
     phone       String?
     email       String?
     businessHours Json?
@@ -366,6 +393,7 @@ model ServiceOffering {
     HoldSegments        BookingHoldSegment[]
     BookingSegments     BookingSegment[]
     InvitationQualifications BusinessInvitationQualification[]
+    IntakeTemplates      ServiceIntakeTemplate[]
     createdAt           DateTime         @default(now())
     updatedAt           DateTime         @updatedAt
 
@@ -524,11 +552,88 @@ model BookingOrder {
     Segments            BookingSegment[]
     PaymentRequest      BookingPaymentRequest?
     CashCollections     CashCollection[]
+    GuestAccessTokens   GuestBookingAccess[]
+    SensitiveIntakeAudits SensitiveIntakeAccessAudit[]
+    intakeDefinition    Json?
+    intakeResponses     Json?
+    sensitiveIntakeCiphertext String? @db.Text
+    sensitiveIntakeIv   String? @db.VarChar(32)
+    sensitiveIntakeTag  String? @db.VarChar(32)
+    sensitiveConsentAt  DateTime?
+    sensitiveIntakePurgedAt DateTime?
     createdAt           DateTime @default(now())
     updatedAt           DateTime @updatedAt
 
     @@index([businessId, status, createdAt])
     @@index([customerId, createdAt])
+}
+
+model GuestBookingAccess {
+    id         String       @id @default(cuid())
+    orderId    String
+    tokenHash  String       @unique @db.Char(64)
+    expiresAt  DateTime
+    revokedAt  DateTime?
+    order      BookingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+    createdAt  DateTime     @default(now())
+
+    @@index([orderId, expiresAt])
+}
+
+model IntakeTemplate {
+    id         String   @id @default(cuid())
+    businessId String
+    name       String
+    active     Boolean  @default(true)
+    business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+    Questions  IntakeQuestion[]
+    Services   ServiceIntakeTemplate[]
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    @@index([businessId, active])
+}
+
+model IntakeQuestion {
+    id         String         @id @default(cuid())
+    templateId String
+    stableKey  String
+    label      String
+    type       IntakeQuestionType
+    options    Json?
+    required   Boolean        @default(false)
+    sensitive  Boolean        @default(false)
+    sortOrder  Int            @default(0)
+    template   IntakeTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+    @@unique([templateId, stableKey])
+    @@index([templateId, sortOrder])
+}
+
+model ServiceIntakeTemplate {
+    offeringId String
+    templateId String
+    offering   ServiceOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+    template   IntakeTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+    @@id([offeringId, templateId])
+    @@index([templateId])
+}
+
+model SensitiveIntakeAccessAudit {
+    id         String       @id @default(cuid())
+    businessId String
+    orderId    String
+    actorUserId String
+    accessType String       @default("VIEW")
+    business   Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+    order      BookingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+    actor      User         @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+    createdAt  DateTime     @default(now())
+
+    @@index([businessId, createdAt])
+    @@index([orderId, createdAt])
+    @@index([actorUserId, createdAt])
 }
 
 // Append-only audited evidence of cash collected (or later corrected) against

@@ -9,6 +9,6 @@ describe('SearchFilters', () => {
     expect(screen.getByRole('search')).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: /search services/i })).toHaveValue('massage')
     expect(screen.getByRole('combobox', { name: /category/i })).toHaveValue('Wellness')
-    expect(screen.getByRole('combobox', { name: /saint lucian location/i })).toHaveValue('Castries')
+    expect(screen.getByRole('combobox', { name: /^location$/i })).toHaveValue('Castries')
   })
 })

@@ -49,7 +49,7 @@ export function buildAccountHub(input: {
 
   return {
     identity: {
-      name: input.user.name ?? 'Booktrix customer',
+      name: input.user.name ?? 'Booktrx customer',
       email: input.user.email,
       initial: (input.user.name?.[0] ?? input.user.email[0] ?? 'B').toUpperCase(),
       points: input.user.points,

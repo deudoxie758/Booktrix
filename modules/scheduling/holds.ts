@@ -240,7 +240,7 @@ const createPrismaHoldStore = (client: HoldPrismaClient): HoldStore => ({
       rangeStart: new Date(Math.min(...starts) - 86_400_000),
       rangeEnd: new Date(Math.max(...starts) + 86_400_000),
     }, client, now)
-    return deriveValidatedSegments(input, toSchedulingSnapshot(facts))
+    return deriveValidatedSegments(input, toSchedulingSnapshot(facts), { now })
   },
 })
 

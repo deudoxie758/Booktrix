@@ -13,7 +13,7 @@ const policy = {
 }
 
 describe('BusinessProfileForm', () => {
-  it('renders the Booktrix design system and labelled identity fields in a dedicated profile section', () => {
+  it('renders the Booktrx design system and labelled identity fields in a dedicated profile section', () => {
     const action = vi.fn()
     render(<BusinessProfileForm profile={profile} action={action} />)
 
@@ -22,7 +22,7 @@ describe('BusinessProfileForm', () => {
     expect(section?.className).toMatch(/border-sand-200/)
     const form = screen.getByRole('form', { name: /business profile/i })
     expect(within(form).getByLabelText(/business name/i)).toHaveValue('Island Glow')
-    expect(within(form).getByLabelText(/^slug/i)).toHaveValue('island-glow')
+    expect(within(form).getByLabelText(/storefront url/i)).toHaveValue('island-glow')
     expect(within(form).getByLabelText(/description/i)).toHaveValue('A calm neighborhood spa.')
   })
 

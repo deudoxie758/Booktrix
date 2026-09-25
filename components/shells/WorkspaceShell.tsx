@@ -1,6 +1,7 @@
 import type { BusinessRole } from '@prisma/client'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
+import { BRAND_WORDMARK } from '@/lib/brand'
 import { getWorkspaceNavigation } from './navigation'
 import { WorkspaceDesktopNavigation, WorkspaceMobileNavigation } from './WorkspaceMobileNavigation'
 
@@ -9,7 +10,7 @@ export function WorkspaceShell({ title, role, activeLocationName, identityName, 
 	return <div className="min-h-screen bg-cream-100 lg:grid lg:grid-cols-[17rem_1fr]">
 		<aside className="border-b border-sand-200 bg-cocoa-950 p-5 text-cream-50 lg:min-h-screen lg:border-b-0">
 			<div className="flex items-center justify-between lg:block">
-				<Link href="/business" className="font-display text-2xl font-semibold">booktrix<span className="text-clay-400">.</span></Link>
+				<Link href="/business" className="font-display text-2xl font-semibold">{BRAND_WORDMARK}<span className="text-clay-400">.</span></Link>
 				<div className="lg:hidden"><WorkspaceMobileNavigation navigation={navigation} role={role} /></div>
 			</div>
 			<div className="hidden lg:block"><WorkspaceDesktopNavigation navigation={navigation} role={role} /></div>

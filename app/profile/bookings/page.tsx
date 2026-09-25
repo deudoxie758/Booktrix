@@ -18,7 +18,7 @@ export default async function CustomerBookingsPage() {
     <div className="mx-auto max-w-5xl">
       <Link href="/profile" className="text-sm font-semibold text-clay-600">← Back to profile</Link>
       <header className="mb-8 mt-6">
-        <p className="text-xs font-bold uppercase tracking-[.18em] text-clay-600">Your Booktrix</p>
+        <p className="text-xs font-bold uppercase tracking-[.18em] text-clay-600">Your Booktrx</p>
         <h1 className="mt-2 font-display text-4xl text-cocoa-950 sm:text-5xl">Bookings</h1>
         <p className="mt-3 max-w-2xl text-cocoa-700">See every service in one place, including bookings that are still waiting for a business to approve.</p>
       </header>
