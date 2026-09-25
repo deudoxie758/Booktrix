@@ -5,7 +5,7 @@ describe('workspace navigation', () => {
 	it.each([
 		['OWNER', ['Overview', 'Calendar', 'Customers', 'Services', 'Team', 'Locations', 'Finance', 'Business settings']],
 		['MANAGER', ['Overview', 'Calendar', 'Customers', 'Services', 'Team', 'Locations']],
-		['STAFF', ['Overview', 'My schedule', 'Customers']],
+		['STAFF', ['Overview', 'My bookings', 'My schedule']],
 		['ACCOUNTS', ['Overview', 'Finance', 'Locations']],
 	] as const)('provides the approved destinations to %s users', (role, labels) => {
 		expect(getWorkspaceNavigation(role).map((item) => item.label)).toEqual(labels)
@@ -24,6 +24,6 @@ describe('workspace navigation', () => {
 	})
 
 	it('limits staff to their operational views', () => {
-		expect(getWorkspaceNavigation('STAFF').map((item) => item.label)).toEqual(['Overview', 'My schedule', 'Customers'])
+		expect(getWorkspaceNavigation('STAFF').map((item) => item.label)).toEqual(['Overview', 'My bookings', 'My schedule'])
 	})
 })

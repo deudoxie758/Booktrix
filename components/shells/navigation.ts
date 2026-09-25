@@ -4,6 +4,7 @@ export type WorkspaceNavItem = { label: string; href: string }
 
 const overview = { label: 'Overview', href: '/business' }
 const schedule = { label: 'My schedule', href: '/business/schedule' }
+const myBookings = { label: 'My bookings', href: '/business/my-bookings' }
 const customers = { label: 'Customers', href: '/business/customers' }
 
 export function getWorkspaceNavigation(role: BusinessRole): WorkspaceNavItem[] {
@@ -15,6 +16,6 @@ export function getWorkspaceNavigation(role: BusinessRole): WorkspaceNavItem[] {
 		case 'ACCOUNTS':
 			return [overview, { label: 'Finance', href: '/business/finance' }, { label: 'Locations', href: '/business/locations' }]
 		case 'STAFF':
-			return [overview, schedule, customers]
+			return [overview, myBookings, schedule]
 	}
 }

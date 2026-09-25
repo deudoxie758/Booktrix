@@ -6,14 +6,14 @@ import { BookingEditor } from '@/components/business/BookingEditor'
 
 describe('BookingAgenda', () => {
   it('shows the customer, service, time, and status in the mobile agenda', () => {
-    render(<BookingAgenda segments={[{ id: 'segment-1', startsAt: new Date('2026-08-20T14:00:00Z'), status: 'REQUESTED', order: { customerName: 'Kai Joseph', customer: null }, offering: { name: 'Consultation' }, location: { name: 'Castries' }, membership: null }]} />)
+    render(<BookingAgenda segments={[{ id: 'segment-1', startsAt: new Date('2026-08-20T14:00:00Z'), status: 'REQUESTED', order: { id: 'order-1', customerName: 'Kai Joseph', customer: null }, offering: { name: 'Consultation' }, location: { name: 'Castries' }, membership: null }]} />)
     expect(screen.getByText('Kai Joseph')).toBeVisible()
     expect(screen.getByText('Consultation')).toBeVisible()
     expect(screen.getByText(/awaiting approval/i)).toBeVisible()
   })
 
   it('offers only valid lifecycle operations', () => {
-    render(<BookingAgenda locationId="location-1" action={() => {}} segments={[{ id: 'segment-1', startsAt: new Date('2026-08-20T14:00:00Z'), status: 'REQUESTED', order: { customerName: 'Kai Joseph', customer: null }, offering: { name: 'Consultation' }, location: { name: 'Castries' }, membership: null }]} />)
+    render(<BookingAgenda locationId="location-1" action={() => {}} segments={[{ id: 'segment-1', startsAt: new Date('2026-08-20T14:00:00Z'), status: 'REQUESTED', order: { id: 'order-1', customerName: 'Kai Joseph', customer: null }, offering: { name: 'Consultation' }, location: { name: 'Castries' }, membership: null }]} />)
     expect(screen.getByRole('button', { name: /approve/i })).toBeVisible()
     expect(screen.getByRole('button', { name: /reject/i })).toBeVisible()
     expect(screen.queryByRole('button', { name: /complete/i })).not.toBeInTheDocument()
