@@ -40,7 +40,7 @@ export function LocationEditor({ mode, location, action }: { mode: 'create' | 'e
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field required id={`${location?.id ?? 'new-location'}-name`} label="Location name" name="name" defaultValue={location?.name} error={errors?.name} />
-        <Field required id={`${location?.id ?? 'new-location'}-slug`} label="Slug" name="slug" defaultValue={location?.slug} error={errors?.slug} help="Used in the location’s public URL." />
+        <Field required id={`${location?.id ?? 'new-location'}-slug`} label="Location URL" name="slug" defaultValue={location?.slug} error={errors?.slug} help="The URL-safe location name used in Booktrx links." />
         <Field required id={`${location?.id ?? 'new-location'}-address`} label="Address" name="address" defaultValue={location?.address ?? ''} error={errors?.address} className="sm:col-span-2" />
         <Field id={`${location?.id ?? 'new-location'}-latitude`} label="Latitude" name="latitude" type="number" step="any" inputMode="decimal" defaultValue={location?.latitude ?? ''} error={errors?.latitude} help="Used with longitude to show this business in nearby search." />
         <Field id={`${location?.id ?? 'new-location'}-longitude`} label="Longitude" name="longitude" type="number" step="any" inputMode="decimal" defaultValue={location?.longitude ?? ''} error={errors?.longitude} help="Used with latitude to show this business in nearby search." />

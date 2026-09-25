@@ -14,3 +14,8 @@ export function getPublishedStorefront(slug: string) {
     },
   })
 }
+
+export async function getCurrentStorefrontSlug(previousSlug: string) {
+  const redirect = await prisma.storefrontSlugRedirect.findUnique({ where: { oldSlug: previousSlug }, include: { business: { select: { slug: true, status: true } } } })
+  return redirect?.business.status === 'PUBLISHED' ? redirect.business.slug : null
+}

@@ -7,6 +7,8 @@ const schema = z.object({
   customerName: z.string().trim().min(2).max(120),
   customerEmail: z.string().trim().toLowerCase().email().max(254),
   customerPhone: z.string().trim().min(7).max(40),
+  intakeAnswers: z.record(z.string(), z.string().max(5_000)).default({}),
+  sensitiveConsent: z.boolean().default(false),
 })
 
 export const parseCreateBookingRequest = (input: unknown) => schema.parse(input)

@@ -22,7 +22,7 @@ describe('BusinessProfileForm', () => {
     expect(section?.className).toMatch(/border-sand-200/)
     const form = screen.getByRole('form', { name: /business profile/i })
     expect(within(form).getByLabelText(/business name/i)).toHaveValue('Island Glow')
-    expect(within(form).getByLabelText(/^slug/i)).toHaveValue('island-glow')
+    expect(within(form).getByLabelText(/storefront url/i)).toHaveValue('island-glow')
     expect(within(form).getByLabelText(/description/i)).toHaveValue('A calm neighborhood spa.')
   })
 

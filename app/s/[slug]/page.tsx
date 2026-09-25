@@ -1,14 +1,18 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 
 import { ServicePicker } from '@/components/marketplace/ServicePicker'
-import { getPublishedStorefront } from '@/modules/marketplace/storefront'
+import { getCurrentStorefrontSlug, getPublishedStorefront } from '@/modules/marketplace/storefront'
 
 export const dynamic = 'force-dynamic'
 
 export default async function StorefrontPage({ params }: { params: { slug: string } }) {
   const business = await getPublishedStorefront(params.slug)
-  if (!business) notFound()
+  if (!business) {
+    const currentSlug = await getCurrentStorefrontSlug(params.slug)
+    if (currentSlug) redirect(`/s/${currentSlug}`)
+    notFound()
+  }
   const professionals = new Map<string, string>()
   business.ServiceOfferings.forEach((offering) => offering.Qualifications.forEach((qualification) => professionals.set(qualification.membershipId, qualification.membership.user.name ?? 'Booktrx professional')))
   return <main className="min-h-screen bg-cream-100">

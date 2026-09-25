@@ -182,14 +182,22 @@ export function createPrismaBusinessSettingsRepository(client: typeof prisma): B
       return { businessId, role: membership.role }
     },
     async isSlugTaken({ slug, excludeBusinessId }) {
-      const existing = await client.business.findUnique({ where: { slug }, select: { id: true } })
-      return Boolean(existing && existing.id !== excludeBusinessId)
+      const [existing, redirect] = await Promise.all([
+        client.business.findUnique({ where: { slug }, select: { id: true } }),
+        client.storefrontSlugRedirect.findUnique({ where: { oldSlug: slug }, select: { businessId: true } }),
+      ])
+      return Boolean((existing && existing.id !== excludeBusinessId) || (redirect && redirect.businessId !== excludeBusinessId))
     },
     // Saves the profile and writes its BUSINESS_PROFILE_UPDATED audit row in
     // the same transaction (mirrors modules/locations/management.ts's
     // setActiveWithAudit) — the write and its audit evidence commit or roll
     // back together; there is never a persisted change without an audit row.
     saveProfile: ({ actorId, businessId, values }) => client.$transaction(async (transaction) => {
+      const current = await transaction.business.findUniqueOrThrow({ where: { id: businessId }, select: { slug: true } })
+      if (current.slug !== values.slug) {
+        await transaction.storefrontSlugRedirect.deleteMany({ where: { oldSlug: values.slug, businessId } })
+        await transaction.storefrontSlugRedirect.upsert({ where: { oldSlug: current.slug }, create: { businessId, oldSlug: current.slug }, update: { businessId } })
+      }
       const profile = await transaction.business.update({ where: { id: businessId }, data: values, select: { id: true, name: true, slug: true, description: true, phone: true, email: true } })
       await transaction.auditLog.create({ data: { actorId, actorRole: 'OWNER', action: 'BUSINESS_PROFILE_UPDATED', details: { businessId, ...values } } })
       return profile
