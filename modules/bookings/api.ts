@@ -4,6 +4,9 @@ const schema = z.object({
   holdToken: z.string().min(1),
   idempotencyKey: z.string().min(1),
   paymentChoice: z.enum(['FULL', 'DEPOSIT', 'CASH']),
+  customerName: z.string().trim().min(2).max(120),
+  customerEmail: z.string().trim().toLowerCase().email().max(254),
+  customerPhone: z.string().trim().min(7).max(40),
 })
 
 export const parseCreateBookingRequest = (input: unknown) => schema.parse(input)

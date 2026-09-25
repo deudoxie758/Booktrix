@@ -527,11 +527,24 @@ model BookingOrder {
     Segments            BookingSegment[]
     PaymentRequest      BookingPaymentRequest?
     CashCollections     CashCollection[]
+    GuestAccessTokens   GuestBookingAccess[]
     createdAt           DateTime @default(now())
     updatedAt           DateTime @updatedAt
 
     @@index([businessId, status, createdAt])
     @@index([customerId, createdAt])
+}
+
+model GuestBookingAccess {
+    id         String       @id @default(cuid())
+    orderId    String
+    tokenHash  String       @unique @db.Char(64)
+    expiresAt  DateTime
+    revokedAt  DateTime?
+    order      BookingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+    createdAt  DateTime     @default(now())
+
+    @@index([orderId, expiresAt])
 }
 
 // Append-only audited evidence of cash collected (or later corrected) against

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { requireActor } from '@/modules/identity/session'
+import { getActor, requireActor } from '@/modules/identity/session'
 import { parseCreateBookingRequest, toBookingErrorResponse } from '@/modules/bookings/api'
 import { createBookingOrder } from '@/modules/bookings/orders'
 import { createPrismaOrderStore, listCustomerOrders } from '@/modules/bookings/repository'
@@ -19,7 +19,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const actor = await requireActor()
+    const actor = await getActor()
     const input = parseCreateBookingRequest(await request.json())
     if (!paymentChoiceEnabled(input.paymentChoice!)) {
       return NextResponse.json({ error: 'Online payments are not available. Please select cash payment.' }, { status: 503 })
@@ -28,14 +28,17 @@ export async function POST(request: Request) {
       holdToken: input.holdToken!,
       idempotencyKey: input.idempotencyKey!,
       paymentChoice: input.paymentChoice!,
-      customerId: actor.id,
-    }, { store: createPrismaOrderStore() })
-    await persistBookingNotification({
+      customerId: actor?.id ?? null,
+      customerName: input.customerName,
+      customerEmail: input.customerEmail,
+      customerPhone: input.customerPhone,
+    }, { store: createPrismaOrderStore(), guestAccessSecret: process.env.GUEST_ACCESS_SECRET ?? process.env.NEXTAUTH_SECRET })
+    if (actor) await persistBookingNotification({
       event: order.status === 'CONFIRMED' ? 'BOOKING_CONFIRMED' : 'BOOKING_REQUESTED',
       orderId: order.id,
       userId: actor.id,
     })
-    return NextResponse.json({ order }, { status: 201 })
+    return NextResponse.json({ order, guestAccessToken: order.guestAccessToken }, { status: 201 })
   } catch (error) {
     const response = toBookingErrorResponse(error as { code?: string })
     return NextResponse.json(response.body, { status: response.status })

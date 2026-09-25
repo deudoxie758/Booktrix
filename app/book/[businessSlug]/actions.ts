@@ -10,7 +10,7 @@ import { getActor } from '@/modules/identity/session'
 export async function completeBookingAction(input: { businessSlug: string; holdToken: string; paymentChoice: 'FULL' | 'DEPOSIT' | 'CASH'; idempotencyKey: string }) {
   const actor = await getActor()
   if (!actor) redirect(signInForCheckoutUrl(input.businessSlug, input.holdToken))
-  const order = await createBookingOrder({ holdToken: input.holdToken, customerId: actor.id, paymentChoice: input.paymentChoice, idempotencyKey: input.idempotencyKey }, { store: createPrismaOrderStore() })
+  const order = await createBookingOrder({ holdToken: input.holdToken, customerId: actor.id, customerName: actor.name ?? 'Customer', customerEmail: actor.email ?? '', customerPhone: 'Not provided', paymentChoice: input.paymentChoice, idempotencyKey: input.idempotencyKey }, { store: createPrismaOrderStore() })
   redirect(`/profile/bookings/${order.id}`)
 }
 

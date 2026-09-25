@@ -20,6 +20,7 @@ type CheckoutState = {
   selectedOfferingIds: string[]
   hold: null | { token: string; expiresAt: string; expired: boolean; segments?: HeldAppointmentSegment[] }
   authenticated: boolean
+  customer?: { name: string; email: string; phone?: string }
   maximumAdvanceBookingDays?: number
   rescheduleOrderId?: string
 }
@@ -35,7 +36,7 @@ type HeldAppointmentSegment = {
 
 export function BookingFlow({ initialState }: { initialState: CheckoutState }) {
   const [hydrated, setHydrated] = useState(false)
-  const [step, setStep] = useState(initialState.hold && !initialState.hold.expired ? (initialState.authenticated ? 4 : 3) : 0)
+  const [step, setStep] = useState(initialState.hold && !initialState.hold.expired ? (initialState.authenticated && initialState.customer?.phone ? 4 : 3) : 0)
   const [locationId, setLocationId] = useState('')
   const [date, setDate] = useState('')
   const [slots, setSlots] = useState<Array<{ start: string; segments: Array<Record<string, unknown>> }>>([])
@@ -47,6 +48,10 @@ export function BookingFlow({ initialState }: { initialState: CheckoutState }) {
   const [payment, setPayment] = useState<string>()
   const [submitting, setSubmitting] = useState(false)
   const [orderId, setOrderId] = useState<string>()
+  const [guestAccessToken, setGuestAccessToken] = useState<string>()
+  const [customerName, setCustomerName] = useState(initialState.customer?.name ?? '')
+  const [customerEmail, setCustomerEmail] = useState(initialState.customer?.email ?? '')
+  const [customerPhone, setCustomerPhone] = useState(initialState.customer?.phone ?? '')
   const [error, setError] = useState('')
   const [holdError, setHoldError] = useState('')
   const alertRef = useRef<HTMLDivElement>(null)
@@ -150,9 +155,12 @@ export function BookingFlow({ initialState }: { initialState: CheckoutState }) {
         else if ('error' in result) setError(result.error)
       } else {
         confirmationIdempotencyKeyRef.current ??= crypto.randomUUID()
-        const response = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ holdToken: hold.token, paymentChoice: payment, idempotencyKey: confirmationIdempotencyKeyRef.current }) })
+        const response = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ holdToken: hold.token, paymentChoice: payment, idempotencyKey: confirmationIdempotencyKeyRef.current, customerName, customerEmail, customerPhone }) })
         const body = await response.json()
-        if (response.ok) setOrderId(body.order.id)
+        if (response.ok) {
+          setOrderId(body.order.id)
+          if (body.guestAccessToken) setGuestAccessToken(body.guestAccessToken)
+        }
         else setError(body.error ?? body.message ?? 'Unable to complete this booking.')
       }
     } catch {
@@ -168,9 +176,9 @@ export function BookingFlow({ initialState }: { initialState: CheckoutState }) {
       {step === 0 && <><h2 className="font-display text-3xl text-cocoa-950">Selected services</h2><p className="mt-2 text-cocoa-600">Review your choices before selecting where to go.</p><button onClick={() => setStep(1)} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">Continue to location</button></>}
       {step === 1 && <><fieldset><legend className="font-display text-3xl text-cocoa-950">Choose a location</legend><div className="mt-5 grid gap-3">{initialState.locations.map((location) => <label key={location.id} className="flex min-h-14 items-center gap-3 rounded-2xl border border-sand-200 bg-white px-4"><input type="radio" name="location" checked={locationId === location.id} onChange={() => setLocationId(location.id)} /><span>{location.name}</span></label>)}</div></fieldset><button disabled={!locationId} onClick={openDateStep} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">Continue to date</button></>}
       {step === 2 && <><h2 className="mb-5 font-display text-3xl text-cocoa-950">Choose a date and time</h2><AvailabilityPicker slots={slots} availableDates={availableDates} loadingDates={loadingDates} loading={loadingSlots} reserving={reserving} onDate={loadDate} onSelect={reserve} />{holdError && <div ref={holdAlertRef} tabIndex={-1} role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{holdError}</div>}{hold && !hold.expired && <p role="status" className="mt-4 rounded-2xl bg-clay-100 p-4 text-sm font-semibold text-cocoa-900">Time reserved for 10 minutes.</p>}<button disabled={reserving || !date || !hold || hold.expired} onClick={() => setStep(initialState.rescheduleOrderId ? 5 : 3)} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{initialState.rescheduleOrderId ? 'Review new time' : 'Continue to details'}</button></>}
-      {step === 3 && <><h2 className="font-display text-3xl text-cocoa-950">Customer details</h2><p className="mt-2 text-cocoa-600">You’ll sign in before confirming so this booking stays connected to your account.</p>{initialState.authenticated ? <button onClick={() => setStep(4)} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">Continue to payment</button> : hold && <Link href={signInForCheckoutUrl(initialState.businessSlug, hold.token)} className="mt-6 inline-flex rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">Sign in to continue</Link>}</>}
+      {step === 3 && <><h2 className="font-display text-3xl text-cocoa-950">Customer details</h2><p className="mt-2 text-cocoa-600">Enter the contact details the business should use for this appointment.</p><div className="mt-5 grid gap-4"><label className="text-sm font-semibold text-cocoa-900">Full name<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} autoComplete="name" className="mt-2 min-h-12 w-full rounded-2xl border border-sand-300 bg-white px-4" /></label><label className="text-sm font-semibold text-cocoa-900">Email address<input type="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} autoComplete="email" className="mt-2 min-h-12 w-full rounded-2xl border border-sand-300 bg-white px-4" /></label><label className="text-sm font-semibold text-cocoa-900">Phone number<input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} autoComplete="tel" className="mt-2 min-h-12 w-full rounded-2xl border border-sand-300 bg-white px-4" /></label></div><button disabled={customerName.trim().length < 2 || !customerEmail.includes('@') || customerPhone.trim().length < 7} onClick={() => setStep(4)} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">Continue to payment</button>{!initialState.authenticated && hold && <p className="mt-4 text-sm text-cocoa-600">Already have an account? <Link href={signInForCheckoutUrl(initialState.businessSlug, hold.token)} className="font-semibold text-clay-700 underline underline-offset-4">Sign in to save this booking to your profile</Link>. Signing in is optional.</p>}</>}
       {step === 4 && <><PaymentChoice choices={paymentChoices} value={payment} disabled={!hydrated} onChange={setPayment} /><button disabled={!hydrated || !payment} onClick={() => setStep(5)} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">Review booking</button></>}
-      {step === 5 && <>{orderId ? <><h2 className="font-display text-3xl text-cocoa-950">Booking complete</h2><p ref={bookingCompleteRef} tabIndex={-1} role="status" className="mt-2 text-cocoa-600">Booking complete. You can view your booking details below.</p><AppointmentDetails segments={hold?.segments ?? []} /><Link href={`/profile/bookings/${orderId}`} className="mt-6 inline-flex rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">View your booking</Link></> : <><h2 className="font-display text-3xl text-cocoa-950">{initialState.rescheduleOrderId ? 'Confirm your new time' : 'Review and confirm'}</h2><p className="mt-2 text-cocoa-600">{initialState.rescheduleOrderId ? 'Your original appointment stays reserved until you confirm this replacement.' : 'Your slot is reserved while checkout completes.'}</p><AppointmentDetails segments={hold?.segments ?? []} />{error && <p ref={checkoutAlertRef} tabIndex={-1} role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}<button disabled={submitting} onClick={confirm} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{submitting ? 'Confirming…' : initialState.rescheduleOrderId ? 'Confirm new time' : 'Confirm booking'}</button></>}</>}
+      {step === 5 && <>{orderId ? <><h2 className="font-display text-3xl text-cocoa-950">Booking complete</h2><p ref={bookingCompleteRef} tabIndex={-1} role="status" className="mt-2 text-cocoa-600">Booking complete. You can view your booking details below.</p><AppointmentDetails segments={hold?.segments ?? []} /><Link href={guestAccessToken ? `/guest/bookings/${guestAccessToken}` : `/profile/bookings/${orderId}`} className="mt-6 inline-flex rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white">View your booking</Link>{guestAccessToken && <p className="mt-3 text-sm text-cocoa-600">Save this private link. It gives read-only access to this booking.</p>}</> : <><h2 className="font-display text-3xl text-cocoa-950">{initialState.rescheduleOrderId ? 'Confirm your new time' : 'Review and confirm'}</h2><p className="mt-2 text-cocoa-600">{initialState.rescheduleOrderId ? 'Your original appointment stays reserved until you confirm this replacement.' : 'Your slot is reserved while checkout completes.'}</p><AppointmentDetails segments={hold?.segments ?? []} />{error && <p ref={checkoutAlertRef} tabIndex={-1} role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}<button disabled={submitting} onClick={confirm} className="mt-6 rounded-full bg-cocoa-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{submitting ? 'Confirming…' : initialState.rescheduleOrderId ? 'Confirm new time' : 'Confirm booking'}</button></>}</>}
     </section><div className="lg:sticky lg:top-6 lg:self-start"><BookingSummary offerings={offerings} /></div></div>
   </div>
 }

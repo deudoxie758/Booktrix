@@ -5,6 +5,7 @@ import type { HoldRecord } from '@/modules/scheduling/holds'
 import { acquireSchedulingLock, schedulingLockBucketAt, schedulingRequestLockKeys } from '@/modules/scheduling/locking'
 import { loadSchedulingFacts, toSchedulingSnapshot } from '@/modules/scheduling/repository'
 import { deriveValidatedSegments } from '@/modules/scheduling/validation'
+import { hashGuestAccessToken, validateGuestAccess } from './guest-access'
 
 import type { BookingOrderStore } from './orders'
 
@@ -26,6 +27,9 @@ const mappedOrder = (order: any) => ({
   idempotencyKey: order.idempotencyKey,
   businessId: order.businessId,
   customerId: order.customerId,
+  customerName: order.customerName,
+  customerEmail: order.customerEmail,
+  customerPhone: order.customerPhone,
   holdToken: order.sourceHoldToken,
   status: order.status,
   subtotalCents: order.subtotalCents,
@@ -39,6 +43,7 @@ const mappedOrder = (order: any) => ({
     reference: order.PaymentRequest.reference,
     provider: order.PaymentRequest.provider,
   } : null,
+  guestAccess: null,
   segments: order.Segments.map((segment: any) => ({ offeringId: segment.offeringId, locationId: segment.locationId, membershipId: segment.membershipId, start: segment.startsAt, end: segment.endsAt, occupiedStart: segment.occupiedStartsAt, occupiedEnd: segment.occupiedEndsAt, attendeeCount: segment.attendeeCount, capacity: Number.MAX_SAFE_INTEGER, priceCents: segment.priceCents, confirmationMode: segment.confirmationMode, status: segment.status })),
 })
 
@@ -103,12 +108,16 @@ export function createPrismaOrderStore(client: Client = prisma): BookingOrderSto
         sourceHoldToken: input.holdToken,
         businessId: input.businessId,
         customerId: input.customerId,
+        customerName: input.customerName,
+        customerEmail: input.customerEmail,
+        customerPhone: input.customerPhone,
         status: input.status,
         subtotalCents: input.subtotalCents,
         dueOnlineCents: input.dueOnlineCents,
         dueAtAppointmentCents: input.dueAtAppointmentCents,
         paymentChoice: input.paymentChoice,
         PaymentRequest: input.paymentRequest ? { create: input.paymentRequest } : undefined,
+        GuestAccessTokens: input.guestAccess ? { create: input.guestAccess } : undefined,
         Segments: { create: input.segments.map((segment) => ({ offeringId: segment.offeringId, locationId: segment.locationId, membershipId: segment.membershipId, startsAt: segment.start, endsAt: segment.end, occupiedStartsAt: segment.occupiedStart, occupiedEndsAt: segment.occupiedEnd, attendeeCount: segment.attendeeCount, priceCents: segment.priceCents, confirmationMode: segment.confirmationMode, status: segment.status })) },
       },
       include: { Segments: true, PaymentRequest: true },
@@ -156,4 +165,20 @@ export async function getCustomerOrder(
 
   if (!order) throw new CustomerOrderNotFoundError()
   return order
+}
+
+export async function getGuestOrder(token: string, now = new Date()) {
+  const access = await prisma.guestBookingAccess.findUnique({
+    where: { tokenHash: hashGuestAccessToken(token) },
+    include: {
+      order: {
+        include: {
+          business: true,
+          Segments: { include: { offering: true, location: true, membership: { include: { user: true } } }, orderBy: { startsAt: 'asc' } },
+        },
+      },
+    },
+  })
+  if (!access || !validateGuestAccess(token, access, now)) throw new CustomerOrderNotFoundError()
+  return access.order
 }
