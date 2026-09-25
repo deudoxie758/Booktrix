@@ -12,6 +12,7 @@ type CreatedOrder = {
   customerName: string
   customerEmail: string
   customerPhone: string
+  intake?: CreateOrderInput['intake']
   holdToken: string
   status: OrderStatus
   subtotalCents: number
@@ -89,7 +90,7 @@ export async function createBookingOrder(
       secret: dependencies.guestAccessSecret ?? '',
     })
     if (!await store.consumeHoldIfActive(hold.token, now)) throw Object.assign(new Error('HOLD_EXPIRED'), { code: 'HOLD_EXPIRED' })
-    const order = await store.create({ idempotencyKey: input.idempotencyKey, holdToken: hold.token, businessId: hold.businessId, customerId: input.customerId ?? null, customerName: input.customerName, customerEmail: input.customerEmail, customerPhone: input.customerPhone, status, subtotalCents, dueOnlineCents: amounts.dueOnlineCents, dueAtAppointmentCents: amounts.dueAtAppointmentCents, paymentChoice: input.paymentChoice, paymentRequest, guestAccess: guestAccess ? { tokenHash: guestAccess.tokenHash, expiresAt: guestAccess.expiresAt } : null, segments })
+    const order = await store.create({ idempotencyKey: input.idempotencyKey, holdToken: hold.token, businessId: hold.businessId, customerId: input.customerId ?? null, customerName: input.customerName, customerEmail: input.customerEmail, customerPhone: input.customerPhone, intake: input.intake, status, subtotalCents, dueOnlineCents: amounts.dueOnlineCents, dueAtAppointmentCents: amounts.dueAtAppointmentCents, paymentChoice: input.paymentChoice, paymentRequest, guestAccess: guestAccess ? { tokenHash: guestAccess.tokenHash, expiresAt: guestAccess.expiresAt } : null, segments })
     return { ...order, guestAccessToken: guestAccess?.token ?? null }
   })
 }

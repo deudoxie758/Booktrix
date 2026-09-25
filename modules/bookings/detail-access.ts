@@ -1,6 +1,7 @@
 import type { BusinessRole } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
+import { decryptSensitiveIntake } from '@/modules/intake/encryption'
 
 type Scope = { role: BusinessRole; membershipId: string; locationIds: string[] }
 type Segment = { id: string; locationId: string; membershipId: string | null }
@@ -35,7 +36,15 @@ export async function getAuthorizedBookingDetail(input: { orderId: string; actor
   if (!membership) return null
   const scope = bookingDetailScope({ role: membership.role, membershipId: membership.id, locationIds: membership.Locations.map((item) => item.locationId) }, order.Segments)
   if (!scope.allowed) return null
-  return { ...order, viewerRole: membership.role, Segments: order.Segments.filter((item) => scope.segmentIds.includes(item.id)) }
+  let sensitiveIntake: Record<string, unknown> = {}
+  if (order.sensitiveIntakeCiphertext && order.sensitiveIntakeIv && order.sensitiveIntakeTag) {
+    const secret = process.env.INTAKE_ENCRYPTION_SECRET ?? process.env.NEXTAUTH_SECRET
+    if (secret) {
+      await prisma.sensitiveIntakeAccessAudit.create({ data: { businessId: order.businessId, orderId: order.id, actorUserId: input.actorId, accessType: 'VIEW' } })
+      sensitiveIntake = decryptSensitiveIntake({ ciphertext: order.sensitiveIntakeCiphertext, iv: order.sensitiveIntakeIv, tag: order.sensitiveIntakeTag }, secret)
+    }
+  }
+  return { ...order, viewerRole: membership.role, intakeAnswers: { ...((order.intakeResponses as Record<string, unknown> | null) ?? {}), ...sensitiveIntake }, Segments: order.Segments.filter((item) => scope.segmentIds.includes(item.id)) }
 }
 
 export async function listAssignedBookings(input: { actorId: string; from?: Date }) {

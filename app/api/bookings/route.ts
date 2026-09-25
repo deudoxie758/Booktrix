@@ -6,6 +6,8 @@ import { createBookingOrder } from '@/modules/bookings/orders'
 import { createPrismaOrderStore, listCustomerOrders } from '@/modules/bookings/repository'
 import { persistBookingNotification } from '@/modules/notifications/booking-events'
 import { paymentChoiceEnabled } from '@/lib/payment-mode'
+import { prisma } from '@/lib/prisma'
+import { buildIntakeSubmission } from '@/modules/intake/snapshot'
 
 export async function GET() {
   try {
@@ -24,6 +26,13 @@ export async function POST(request: Request) {
     if (!paymentChoiceEnabled(input.paymentChoice!)) {
       return NextResponse.json({ error: 'Online payments are not available. Please select cash payment.' }, { status: 503 })
     }
+    const held = await prisma.bookingHold.findUnique({
+      where: { token: input.holdToken },
+      include: { Segments: { include: { offering: { include: { IntakeTemplates: { include: { template: { include: { Questions: { orderBy: { sortOrder: 'asc' } } } } } } } } } } },
+    })
+    if (!held) return NextResponse.json({ error: 'Your reserved time could not be found.' }, { status: 409 })
+    const questions = Array.from(new Map(held.Segments.flatMap((segment) => segment.offering.IntakeTemplates.flatMap((assignment) => assignment.template.active ? assignment.template.Questions : [])).map((question) => [question.id, { id: question.id, label: question.label, type: question.type, options: question.options, required: question.required, sensitive: question.sensitive }])).values())
+    const intake = buildIntakeSubmission({ questions, answers: input.intakeAnswers, sensitiveConsent: input.sensitiveConsent, secret: process.env.INTAKE_ENCRYPTION_SECRET ?? process.env.NEXTAUTH_SECRET ?? '' })
     const order = await createBookingOrder({
       holdToken: input.holdToken!,
       idempotencyKey: input.idempotencyKey!,
@@ -32,6 +41,7 @@ export async function POST(request: Request) {
       customerName: input.customerName,
       customerEmail: input.customerEmail,
       customerPhone: input.customerPhone,
+      intake,
     }, { store: createPrismaOrderStore(), guestAccessSecret: process.env.GUEST_ACCESS_SECRET ?? process.env.NEXTAUTH_SECRET })
     if (actor) await persistBookingNotification({
       event: order.status === 'CONFIRMED' ? 'BOOKING_CONFIRMED' : 'BOOKING_REQUESTED',

@@ -20,6 +20,7 @@ export type CreateOrderInput = {
   customerName: string
   customerEmail: string
   customerPhone: string
+  intake?: { definition: unknown[]; responses: Record<string, string>; sensitive: { ciphertext: string; iv: string; tag: string } | null; consentAt: Date | null }
   idempotencyKey: string
   paymentChoice: CatalogPaymentChoice
 }

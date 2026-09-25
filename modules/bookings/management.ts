@@ -1,4 +1,4 @@
-import type { BookingSegmentStatus } from '@prisma/client'
+import type { BookingSegmentStatus, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { requireLocationAccess } from '@/modules/organizations/access'
@@ -21,6 +21,7 @@ export type ManagedBookingInput = {
   segments: Array<{ offeringId: string; membershipId: string; startsAt: Date; attendeeCount: number }>
   override: boolean
   overrideReason?: string
+  intake?: { definition: unknown[]; responses: Record<string, string>; sensitive: { ciphertext: string; iv: string; tag: string } | null; consentAt: Date | null }
 }
 
 type ManagementDependencies = {
@@ -56,6 +57,12 @@ async function createManagedBookingRecord(input: ManagedBookingInput, options: {
         customerName: input.customer.kind === 'WALK_IN' ? input.customer.name.trim() : null,
         customerEmail: input.customer.kind === 'WALK_IN' ? input.customer.email : null,
         customerPhone: input.customer.kind === 'WALK_IN' ? input.customer.phone : null,
+        intakeDefinition: input.intake?.definition as Prisma.InputJsonValue | undefined,
+        intakeResponses: input.intake?.responses as Prisma.InputJsonValue | undefined,
+        sensitiveIntakeCiphertext: input.intake?.sensitive?.ciphertext,
+        sensitiveIntakeIv: input.intake?.sensitive?.iv,
+        sensitiveIntakeTag: input.intake?.sensitive?.tag,
+        sensitiveConsentAt: input.intake?.consentAt,
         idempotencyKey: `managed:${input.actorId}:${crypto.randomUUID()}`,
         origin: input.customer.kind === 'WALK_IN' ? 'WALK_IN' : 'MANAGER',
         status: 'CONFIRMED', paymentChoice: 'CASH', subtotalCents, dueAtAppointmentCents: subtotalCents,

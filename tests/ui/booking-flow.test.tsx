@@ -76,6 +76,23 @@ describe('BookingFlow', () => {
     vi.unstubAllGlobals()
   })
 
+  it('requires configured intake answers and sensitive consent before payment', () => {
+    render(<BookingFlow initialState={{
+      ...state, authenticated: false, customer: undefined,
+      offerings: [{ ...state.offerings[0], intakeQuestions: [{ id: 'allergies', label: 'List allergies', type: 'SHORT_TEXT', options: null, required: true, sensitive: true }] }],
+      hold: { token: 'hold-1', expiresAt: '2026-08-20T13:10:00.000Z', expired: false },
+    }} />)
+    fireEvent.change(screen.getByLabelText(/full name/i), { target: { value: 'Guest Customer' } })
+    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: 'guest@example.com' } })
+    fireEvent.change(screen.getByLabelText(/phone number/i), { target: { value: '+1 758 555 0101' } })
+    const continueButton = screen.getByRole('button', { name: /continue to payment/i })
+    expect(continueButton).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/list allergies/i), { target: { value: 'Latex' } })
+    expect(continueButton).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: /i consent/i }))
+    expect(continueButton).toBeEnabled()
+  })
+
   it('shows held appointment details in Saint Lucia on review and completion', async () => {
     const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: { id: 'order-1' } }) })
     vi.stubGlobal('fetch', fetch)

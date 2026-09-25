@@ -39,5 +39,5 @@ export default async function BookingPage({ params, searchParams }: { params: { 
     ...(offering.allowFullPayment ? ['FULL' as const] : []),
     ...(offering.allowDeposit ? ['DEPOSIT' as const] : []),
     ...(offering.allowCash ? ['CASH' as const] : []),
-  ]) })), professionals, selectedOfferingIds: selected, hold, authenticated: Boolean(actor), customer: actor ? { name: actor.name ?? '', email: actor.email ?? '' } : undefined, maximumAdvanceBookingDays: business.Policy?.maximumAdvanceBookingDays ?? 90, rescheduleOrderId: searchParams.reschedule }} /></div></main>
+  ]), intakeQuestions: offering.IntakeTemplates.flatMap((assignment) => assignment.template.active ? assignment.template.Questions.map((question) => ({ id: question.id, label: question.label, type: question.type, options: question.options, required: question.required, sensitive: question.sensitive })) : []) })), professionals, selectedOfferingIds: selected, hold, authenticated: Boolean(actor), customer: actor ? { name: actor.name ?? '', email: actor.email ?? '' } : undefined, maximumAdvanceBookingDays: business.Policy?.maximumAdvanceBookingDays ?? 90, rescheduleOrderId: searchParams.reschedule }} /></div></main>
 }

@@ -3,8 +3,8 @@ import { getWorkspaceNavigation } from '@/components/shells/navigation'
 
 describe('workspace navigation', () => {
 	it.each([
-		['OWNER', ['Overview', 'Calendar', 'Customers', 'Services', 'Team', 'Locations', 'Finance', 'Business settings']],
-		['MANAGER', ['Overview', 'Calendar', 'Customers', 'Services', 'Team', 'Locations']],
+		['OWNER', ['Overview', 'Calendar', 'Customers', 'Services', 'Intake forms', 'Team', 'Locations', 'Finance', 'Business settings']],
+		['MANAGER', ['Overview', 'Calendar', 'Customers', 'Services', 'Intake forms', 'Team', 'Locations']],
 		['STAFF', ['Overview', 'My bookings', 'My schedule']],
 		['ACCOUNTS', ['Overview', 'Finance', 'Locations']],
 	] as const)('provides the approved destinations to %s users', (role, labels) => {
