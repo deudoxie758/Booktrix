@@ -22,7 +22,10 @@ export async function POST(req: Request) {
     if (!booking) return NextResponse.json({ ok: false, error: 'Booking not found' }, { status: 404 })
     const business = await prisma.business.findUnique({ where: { legacySpaId: booking.spaId } })
     if (!business) return NextResponse.json({ ok: false, error: 'Business migration required' }, { status: 409 })
-    const access = await requireBusinessAccess(business.id, ['OWNER', 'MANAGER', 'ACCOUNTS', 'STAFF'])
+    const access = await requireBusinessAccess(business.id, ['OWNER', 'MANAGER', 'ACCOUNTS'])
+    if (status && !['OWNER', 'MANAGER'].includes(access.membership.role)) {
+      return NextResponse.json({ ok: false, error: 'Booking management permission required' }, { status: 403 })
+    }
     if (paymentStatus && !['OWNER', 'MANAGER', 'ACCOUNTS'].includes(access.membership.role)) {
       return NextResponse.json({ ok: false, error: 'Finance permission required' }, { status: 403 })
     }
@@ -55,9 +58,18 @@ export async function POST(req: Request) {
         : changeNote
     }
 
-    await prisma.booking.update({ where: { id: bookingId }, data: updateData })
+    let transitionedToCompleted = false
+    if (status === 'COMPLETED') {
+      const result = await prisma.booking.updateMany({
+        where: { id: bookingId, status: { not: 'COMPLETED' } },
+        data: updateData,
+      })
+      transitionedToCompleted = result.count === 1
+    } else {
+      await prisma.booking.update({ where: { id: bookingId }, data: updateData })
+    }
 
-    if (status === 'COMPLETED' && booking.userId) {
+    if (transitionedToCompleted && booking.userId) {
       try {
         await prisma.user.update({ where: { id: booking.userId }, data: { points: { increment: Math.floor(booking.totalCents / 100) } } })
       } catch (e) {

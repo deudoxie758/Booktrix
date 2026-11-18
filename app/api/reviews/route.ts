@@ -61,6 +61,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { spaId, rating, title, comment, bookingId } = body
 
+    if (!spaId || !bookingId || !Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return NextResponse.json({ error: 'A completed booking and rating from 1 to 5 are required' }, { status: 400 })
+    }
+    if (typeof title !== 'string' || !title.trim() || typeof comment !== 'string' || !comment.trim()) {
+      return NextResponse.json({ error: 'Review title and comment are required' }, { status: 400 })
+    }
+
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     })
@@ -69,13 +76,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
+    const booking = await prisma.booking.findFirst({
+      where: { id: bookingId, spaId, userId: user.id, status: 'COMPLETED' },
+      select: { id: true },
+    })
+    if (!booking) return NextResponse.json({ error: 'This booking is not eligible for a verified review' }, { status: 403 })
+
+    const existing = await prisma.review.findUnique({ where: { bookingId } })
+    if (existing) return NextResponse.json({ error: 'This booking has already been reviewed' }, { status: 409 })
+
     const review = await prisma.review.create({
       data: {
         spaId,
         userId: user.id,
         rating,
-        title,
-        comment,
+        title: title.trim(),
+        comment: comment.trim(),
         bookingId,
         verified: true,
       },
@@ -91,6 +107,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(review, { status: 201 })
   } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      return NextResponse.json({ error: 'This booking has already been reviewed' }, { status: 409 })
+    }
     console.error('Failed to create review:', error)
     return NextResponse.json(
       { error: 'Failed to create review' },

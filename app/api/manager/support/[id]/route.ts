@@ -29,6 +29,12 @@ export async function PATCH(
 
     const body = await request.json()
     const { status, replies } = body
+    if (status !== undefined && !['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'].includes(status)) {
+      return NextResponse.json({ error: 'Invalid support status' }, { status: 400 })
+    }
+    if (replies !== undefined && typeof replies !== 'string') {
+      return NextResponse.json({ error: 'Replies must be text' }, { status: 400 })
+    }
 
     // Verify ownership
     const ticket = await prisma.supportTicket.findUnique({
@@ -40,13 +46,13 @@ export async function PATCH(
     }
 
     const spaIds = user.OwnedSpas.map((spa) => spa.id)
-    if (ticket.spaId && !spaIds.includes(ticket.spaId)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!ticket.spaId || !spaIds.includes(ticket.spaId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const updateData: any = {}
     if (status) updateData.status = status
-    if (replies) updateData.replies = replies
+    if (replies !== undefined) updateData.replies = replies.trim() || null
 
     const updatedTicket = await prisma.supportTicket.update({
       where: { id: params.id },

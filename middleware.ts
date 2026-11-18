@@ -27,6 +27,5 @@ export const config = {
 		'/dashboard/:path*',
 		'/profile/:path*',
 		'/manager/:path*',
-		'/s/:path*/book/:path*',
 	],
 }

@@ -55,15 +55,22 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } })
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
     const body = await request.json()
-    const { notificationId, read } = body
+    const notificationId = typeof body.notificationId === 'string' ? body.notificationId : ''
+    if (!notificationId || typeof body.read !== 'boolean') {
+      return NextResponse.json({ error: 'A notification id and boolean read value are required' }, { status: 400 })
+    }
 
-    const notification = await prisma.notification.update({
-      where: { id: notificationId },
-      data: { read },
+    const result = await prisma.notification.updateMany({
+      where: { id: notificationId, userId: user.id },
+      data: { read: body.read },
     })
+    if (result.count !== 1) return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
 
-    return NextResponse.json(notification)
+    return NextResponse.json({ id: notificationId, read: body.read })
   } catch (error) {
     console.error('Failed to update notification:', error)
     return NextResponse.json(

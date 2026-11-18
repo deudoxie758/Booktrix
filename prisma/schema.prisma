@@ -864,7 +864,7 @@ model Review {
     spa          Spa      @relation(fields: [spaId], references: [id])
     userId       String
     user         User     @relation(fields: [userId], references: [id])
-    bookingId    String?
+    bookingId    String?  @unique
     rating       Int      @default(5)
     title        String
     comment      String
