@@ -54,4 +54,19 @@ describe('availability', () => {
       '2026-08-20T15:00:00.000Z',
     ])
   })
+
+  it('uses an available qualified professional when the first qualified professional is off schedule', () => {
+    const starts = findAvailableStarts({
+      window: { start: iso(13), end: iso(16) },
+      incrementMinutes: 60,
+      services: [{ offeringId: 'service-1', durationMinutes: 60, preparationMinutes: 0, cleanupMinutes: 0, attendeeCount: 1, capacity: 1 }],
+      professionals: [
+        { membershipId: 'a-off-schedule', working: [], qualifiedOfferingIds: ['service-1'] },
+        { membershipId: 'b-available', working: [{ start: iso(13), end: iso(16) }], qualifiedOfferingIds: ['service-1'] },
+      ],
+    })
+
+    expect(starts).toHaveLength(3)
+    expect(starts.every((slot) => slot.segments[0]?.membershipId === 'b-available')).toBe(true)
+  })
 })

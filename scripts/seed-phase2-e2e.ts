@@ -189,6 +189,20 @@ async function seedDemoBusiness(fixture: BusinessFixture) {
 async function seedBookingJourneyFixtures() {
   const [owner, manager, staff, customer, accounts] = await Promise.all([upsertUser('booktrix-e2e-owner', 'owner.e2e@booktrix.test', 'E2E Owner', Role.OWNER), upsertUser('booktrix-e2e-manager', 'manager.e2e@booktrix.test', 'E2E Manager', Role.USER), upsertUser('booktrix-e2e-staff', 'staff.e2e@booktrix.test', 'Amara E2E', Role.USER), upsertUser('booktrix-e2e-customer', 'customer.e2e@booktrix.test', 'E2E Customer', Role.USER), upsertUser('booktrix-e2e-accounts', 'accounts.e2e@booktrix.test', 'E2E Accounts', Role.ACCOUNTANT)])
   const business = await prisma.business.upsert({ where: { slug: 'booktrix-e2e-studio' }, create: { id: 'booktrix-e2e-business', name: 'Booktrix E2E Studio', slug: 'booktrix-e2e-studio', status: 'PUBLISHED' }, update: { name: 'Booktrix E2E Studio', status: 'PUBLISHED' } })
+  await prisma.businessMembership.deleteMany({ where: { businessId: business.id, userId: customer.id } })
+  await prisma.bookingSegment.updateMany({
+    where: {
+      order: {
+        businessId: business.id,
+        id: { notIn: Object.values(workspaceSecurityFixtures.cashOrders).map(({ id }) => id) },
+      },
+    },
+    data: { status: 'CANCELLED' },
+  })
+  await prisma.bookingHold.updateMany({
+    where: { businessId: business.id, token: { not: 'booktrix-e2e-expired-hold' }, consumedAt: null },
+    data: { consumedAt: new Date() },
+  })
   await prisma.businessSetup.upsert({ where: { businessId: business.id }, create: { businessId: business.id, profileComplete: true, firstLocationComplete: true, policiesAccepted: true, publicationReady: true }, update: { profileComplete: true, firstLocationComplete: true, policiesAccepted: true, publicationReady: true } })
   const castries = await prisma.location.upsert({ where: { businessId_slug: { businessId: business.id, slug: 'castries' } }, create: { id: 'booktrix-e2e-location-castries', businessId: business.id, slug: 'castries', name: 'E2E Castries Studio', address: '1 Test Street, Castries', latitude: 14.0101, longitude: -60.9875, coordinateSource: 'MANUAL', isActive: true }, update: { name: 'E2E Castries Studio', latitude: 14.0101, longitude: -60.9875, coordinateSource: 'MANUAL', isActive: true } })
   const rodneyBay = await prisma.location.upsert({ where: { businessId_slug: { businessId: business.id, slug: 'rodney-bay' } }, create: { id: 'booktrix-e2e-location-rodney', businessId: business.id, slug: 'rodney-bay', name: 'E2E Rodney Bay Studio', address: '2 Test Street, Rodney Bay', latitude: 14.0742, longitude: -60.9492, coordinateSource: 'MANUAL', isActive: true }, update: { name: 'E2E Rodney Bay Studio', latitude: 14.0742, longitude: -60.9492, coordinateSource: 'MANUAL', isActive: true } })
@@ -298,5 +312,13 @@ async function seedWorkspaceSecurityFixtures(input: {
   })
 }
 
-async function main() { await preflightFixtureOwnership(); for (const fixture of demoBusinesses) await seedDemoBusiness(fixture); await seedBookingJourneyFixtures(); console.info('Booktrix Phase 2 E2E fixtures are ready.') }
-if (process.argv[1]?.endsWith('seed-phase2-e2e.ts')) main().catch((error) => { console.error(error); process.exitCode = 1 }).finally(() => prisma.$disconnect())
+export async function seedPhase2E2E() {
+  await preflightFixtureOwnership()
+  for (const fixture of demoBusinesses) await seedDemoBusiness(fixture)
+  await seedBookingJourneyFixtures()
+  console.info('Booktrix Phase 2 E2E fixtures are ready.')
+}
+
+export async function disconnectPhase2E2ESeeder() {
+  await prisma.$disconnect()
+}

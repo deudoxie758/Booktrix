@@ -124,7 +124,7 @@ test('a validation error on the Add location form is exposed as a focusable, ass
 
   const form = page.getByRole('form', { name: 'Add location' })
   await form.getByLabel('Location name').fill('Duplicate Slug Attempt')
-  await form.getByLabel('Slug').fill('castries')
+  await form.getByLabel('Location URL').fill('castries')
   await form.getByLabel('Address').fill('1 Test Street, Castries')
   await form.getByLabel('Phone').fill('+1 758 555 0100')
   await form.getByLabel('Email').fill('duplicate-slug@booktrix.test')

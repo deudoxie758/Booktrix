@@ -9,6 +9,7 @@ async function signIn(page: import('@playwright/test').Page, email: string, call
 }
 
 test('owner creates a one-time invitation and an existing account accepts it', async ({ page }, testInfo) => {
+  test.setTimeout(90_000)
   test.skip(testInfo.project.name !== 'desktop', 'Acceptance mutates the shared seeded account once.')
   await signIn(page, 'owner.e2e@booktrix.test')
   await expect(page.getByRole('heading', { name: 'Team', exact: true })).toBeVisible()

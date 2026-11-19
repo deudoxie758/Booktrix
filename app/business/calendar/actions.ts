@@ -35,7 +35,6 @@ export async function createManagedBookingAction(formData: FormData): Promise<Ma
       segments: [{ offeringId, membershipId: String(formData.get('membershipId') ?? ''), startsAt, attendeeCount: 1 }],
       override: false, intake,
     })
-    revalidatePath('/business/calendar')
     return { ok: true }
   } catch (error) {
     return { ok: false, error: bookingErrorMessage(error) }

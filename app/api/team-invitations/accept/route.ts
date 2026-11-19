@@ -19,16 +19,16 @@ function invitationPath(token: string) {
 export async function POST(request: Request) {
   const formData = await request.formData()
   const token = String(formData.get('token') ?? '')
-  if (!token || token.length > 256) return NextResponse.redirect(new URL('/invitations/invalid?error=INVITATION_NOT_FOUND', request.url))
+  if (!token || token.length > 256) return NextResponse.redirect(new URL('/invitations/invalid?error=INVITATION_NOT_FOUND', request.url), 303)
   const actor = await getActor()
-  if (!actor) return NextResponse.redirect(new URL(invitationAuthenticationUrls(token).signIn, request.url))
+  if (!actor) return NextResponse.redirect(new URL(invitationAuthenticationUrls(token).signIn, request.url), 303)
 
   try {
     await acceptInvitation({ token, actorId: actor.id })
-    return NextResponse.redirect(new URL('/business?invitation=accepted', request.url))
+    return NextResponse.redirect(new URL('/business?invitation=accepted', request.url), 303)
   } catch (error) {
     const candidate = error && typeof error === 'object' && 'code' in error ? String(error.code) : error instanceof Error ? error.message : ''
     const code = acceptanceErrors.has(candidate) ? candidate : 'INVITATION_NOT_FOUND'
-    return NextResponse.redirect(new URL(`${invitationPath(token)}?error=${encodeURIComponent(code)}`, request.url))
+    return NextResponse.redirect(new URL(`${invitationPath(token)}?error=${encodeURIComponent(code)}`, request.url), 303)
   }
 }

@@ -5,11 +5,16 @@ import {
   expiredInvitationWindow,
   fixtureOwnership,
   pendingInvitationWindow,
+  seedPhase2E2E,
   stLuciaFutureAppointment,
   workspaceSecurityFixtures,
 } from '@/scripts/seed-phase2-e2e'
 
 describe('Phase 2 E2E demo storefront fixtures', () => {
+  it('exports an explicit seed entry point for the command runner', () => {
+    expect(seedPhase2E2E).toBeTypeOf('function')
+  })
+
   it('defines deterministic ownership for the six demo storefronts', () => {
     expect(fixtureOwnership.businesses).toEqual(expect.arrayContaining([
       { id: 'booktrix-e2e-business-sole-wellness-house', slug: 'sole-wellness-house' },

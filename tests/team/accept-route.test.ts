@@ -23,7 +23,7 @@ describe('team invitation acceptance route', () => {
 
     const response = await POST(request())
 
-    expect(response.status).toBe(307)
+    expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe('https://booktrix.test/auth/sign-in?callbackUrl=%2Finvitations%2Fone-time-token')
     expect(mocks.acceptInvitation).not.toHaveBeenCalled()
   })
@@ -32,6 +32,7 @@ describe('team invitation acceptance route', () => {
     const response = await POST(request())
 
     expect(mocks.acceptInvitation).toHaveBeenCalledWith({ token: 'one-time-token', actorId: 'invitee' })
+    expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe('https://booktrix.test/business?invitation=accepted')
   })
 
@@ -40,6 +41,7 @@ describe('team invitation acceptance route', () => {
 
     const response = await POST(request('secret-token'))
 
+    expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe('https://booktrix.test/invitations/secret-token?error=INVITATION_EMAIL_MISMATCH')
   })
 })

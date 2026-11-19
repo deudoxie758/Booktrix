@@ -18,6 +18,7 @@ describe('application security headers', () => {
     expect(headers['X-Content-Type-Options']).toBe('nosniff')
     expect(headers['X-Frame-Options']).toBe('DENY')
     expect(headers['Permissions-Policy']).toContain('camera=()')
+    expect(headers['Permissions-Policy']).toContain('geolocation=(self)')
     expect(headers['Strict-Transport-Security']).toContain('max-age=31536000')
   })
 

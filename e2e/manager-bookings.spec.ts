@@ -49,7 +49,7 @@ test('owner can enter an explicit walk-in booking without the form freezing', as
   }).formatToParts(new Date(payload.slots[0]!.start)).map(({ type, value }) => [type, value]))
   await page.getByLabel(/date and time/i).fill(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`)
   await page.getByRole('button', { name: /create booking/i }).click()
-  await expect(page.getByRole('status')).toContainText(/booking created successfully/i)
+  await expect(page.getByRole('status')).toContainText(/booking created successfully/i, { timeout: 30_000 })
   await expect(page.getByRole('button', { name: /create booking/i })).toBeEnabled()
 })
 

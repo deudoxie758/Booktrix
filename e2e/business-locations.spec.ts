@@ -16,7 +16,7 @@ test('manager adds and deactivates an authorized location', async ({ page }) => 
   const name = `E2E Manager Location ${suffix}`
   const form = page.getByRole('form', { name: 'Add location' })
   await form.getByLabel('Location name').fill(name)
-  await form.getByLabel('Slug').fill(`manager-location-${suffix}`)
+  await form.getByLabel('Location URL').fill(`manager-location-${suffix}`)
   await form.getByLabel('Address').fill('44 Test Street, Castries')
   await form.getByLabel('Phone').fill('+1 758 555 0144')
   await form.getByLabel('Email').fill(`manager-${suffix}@booktrix.test`)

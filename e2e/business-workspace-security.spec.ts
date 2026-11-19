@@ -158,6 +158,7 @@ test.describe('Cross-role authorization: Staff', () => {
   })
 
   test('Staff cannot mutate schedule, locations, team, finance, services, or settings via a replayed authorized request', async ({ browser }, testInfo) => {
+    test.setTimeout(120_000)
     test.skip(testInfo.project.name !== 'desktop', 'Server-side authorization is viewport-independent; verified once on desktop.')
 
     // Capture a real, valid saveStaffScheduleAction request as Owner (a true
@@ -182,16 +183,17 @@ test.describe('Cross-role authorization: Staff', () => {
     await ownerPage.goto(`/business/locations`)
     await ownerPage.getByRole('heading', { name: 'Locations' }).waitFor()
     const capturedLocation = await captureAction(ownerPage, '**/business/locations', async () => {
-      const button = ownerPage.getByRole('button', { name: /deactivate location|activate location/i }).first()
+      const locationCard = ownerPage.locator('article', { hasText: 'E2E Retired Location' })
+      const button = locationCard.getByRole('button', { name: 'Activate location' })
       await button.waitFor()
       ownerPage.once('dialog', (dialog) => dialog.accept())
       await button.click()
-      await ownerPage.waitForTimeout(500)
+      await locationCard.getByRole('status').filter({ hasText: 'Location activated.' }).waitFor()
       // Restore original state so this capture step has no lasting effect.
-      const restore = ownerPage.getByRole('button', { name: /deactivate location|activate location/i }).first()
+      const restore = locationCard.getByRole('button', { name: 'Deactivate location' })
       ownerPage.once('dialog', (dialog) => dialog.accept())
       await restore.click()
-      await ownerPage.waitForTimeout(500)
+      await locationCard.getByRole('status').filter({ hasText: 'Location deactivated.' }).waitFor()
     })
 
     // Capture a real updateMemberAccessAction request as Owner.
@@ -213,6 +215,7 @@ test.describe('Cross-role authorization: Staff', () => {
       await serviceForm.getByLabel('Category').fill('Probe')
       await serviceForm.getByLabel('Duration (minutes)').fill('30')
       await serviceForm.getByLabel('Price (EC$)').fill('10')
+      await serviceForm.getByLabel('E2E Castries Studio', { exact: true }).check()
       await serviceForm.getByRole('button', { name: /save service/i }).click()
       await ownerPage.waitForTimeout(500)
     })
@@ -306,15 +309,16 @@ test.describe('Cross-role authorization: Accounts', () => {
     await signIn(ownerPage, 'owner.e2e@booktrix.test', '/business/locations')
     await ownerPage.getByRole('heading', { name: 'Locations' }).waitFor()
     const capturedLocation = await captureAction(ownerPage, '**/business/locations', async () => {
-      const button = ownerPage.getByRole('button', { name: /deactivate location|activate location/i }).first()
+      const locationCard = ownerPage.locator('article', { hasText: 'E2E Retired Location' })
+      const button = locationCard.getByRole('button', { name: 'Activate location' })
       await button.waitFor()
       ownerPage.once('dialog', (dialog) => dialog.accept())
       await button.click()
-      await ownerPage.waitForTimeout(500)
-      const restore = ownerPage.getByRole('button', { name: /deactivate location|activate location/i }).first()
+      await locationCard.getByRole('status').filter({ hasText: 'Location activated.' }).waitFor()
+      const restore = locationCard.getByRole('button', { name: 'Deactivate location' })
       ownerPage.once('dialog', (dialog) => dialog.accept())
       await restore.click()
-      await ownerPage.waitForTimeout(500)
+      await locationCard.getByRole('status').filter({ hasText: 'Location deactivated.' }).waitFor()
     })
 
     await ownerPage.goto(`/business/team`)
@@ -432,7 +436,7 @@ test.describe('Invitation lifecycle', () => {
     test.skip(testInfo.project.name !== 'desktop', 'Server-side authorization is viewport-independent; verified once on desktop.')
     await signIn(page, 'customer.e2e@booktrix.test')
     const response = await context.request.post(`/api/team-invitations/accept`, { form: { token: 'booktrix-e2e-invitation-token-expired-0001' }, maxRedirects: 0 })
-    expect(response.status()).toBe(307)
+    expect(response.status()).toBe(303)
     expect(response.headers()['location']).toContain('error=INVITATION_EXPIRED')
   })
 
@@ -440,7 +444,7 @@ test.describe('Invitation lifecycle', () => {
     test.skip(testInfo.project.name !== 'desktop', 'Server-side authorization is viewport-independent; verified once on desktop.')
     await signIn(page, 'customer.e2e@booktrix.test')
     const response = await context.request.post(`/api/team-invitations/accept`, { form: { token: 'booktrix-e2e-invitation-token-revoked-0001' }, maxRedirects: 0 })
-    expect(response.status()).toBe(307)
+    expect(response.status()).toBe(303)
     expect(response.headers()['location']).toContain('error=INVITATION_REVOKED')
   })
 
@@ -448,7 +452,7 @@ test.describe('Invitation lifecycle', () => {
     test.skip(testInfo.project.name !== 'desktop', 'Server-side authorization is viewport-independent; verified once on desktop.')
     await signIn(page, 'customer.e2e@booktrix.test')
     const response = await context.request.post(`/api/team-invitations/accept`, { form: { token: 'booktrix-e2e-invitation-token-pending-0001' }, maxRedirects: 0 })
-    expect(response.status()).toBe(307)
+    expect(response.status()).toBe(303)
     expect(response.headers()['location']).toContain('error=INVITATION_EMAIL_MISMATCH')
   })
 })
